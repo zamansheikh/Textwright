@@ -1,6 +1,6 @@
 # Textwright
 
-**An open-source SMS app for Android that gives you full control over your own message history.**
+**A source-available SMS app for Android that gives you full control over your own message history.**
 
 Textwright is a native Android messaging app, built with Kotlin and Jetpack Compose. It starts from one idea: the messages stored on *your* phone should be yours to edit. Today it is a working SMS client with message and timestamp editing. The goal is a complete, modern default messaging app.
 
@@ -123,7 +123,7 @@ Ideas and priorities are open for discussion in issues.
 
 ## Contributing
 
-Contributions are welcome, from bug reports to new features.
+Contributions are welcome, from bug reports to new features. By submitting a pull request you agree to the contribution terms in section 4 of the [LICENSE](LICENSE).
 
 1. Open an issue describing the bug or idea first for anything non-trivial.
 2. Fork the repo and create a branch from `main`.
@@ -135,7 +135,9 @@ Particularly useful right now: testing edits against **Samsung Messages and othe
 
 ## License
 
-A license has not been chosen yet. Until a `LICENSE` file is added, all rights are reserved by the authors.
+Textwright is **source-available, not open source**. You can read the code, build it for your own personal use, and contribute to this repository. You may **not** copy or reuse the code in your own project, redistribute it, or publish your own builds. Contributions are licensed to the project owner as described in the license.
+
+See [LICENSE](LICENSE) for the full terms. For any use it doesn't allow, contact the owner.
 
 ## Acknowledgements
 

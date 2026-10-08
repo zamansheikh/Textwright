@@ -1,0 +1,86 @@
+Textwright Source-Available License
+
+Copyright (c) 2026 Silifton. All rights reserved.
+
+1. DEFINITIONS
+
+"Software" means the Textwright source code, build files, resources, documentation
+and any other material in this repository, in source or compiled form.
+
+"Owner" means Silifton, the copyright holder of the Software.
+
+"Contribution" means any code, documentation, or other material that you submit
+to the Owner for inclusion in the Software, for example through a pull request,
+patch, or issue.
+
+2. PERMITTED USE
+
+You may, free of charge:
+
+  a. View and read the source code of the Software.
+  b. Build the Software and run it for your own personal, non-commercial use.
+  c. Fork the repository on the hosting platform where it is published, solely
+     for the purpose of preparing and submitting Contributions to the Owner.
+  d. Submit Contributions to the Owner under section 4.
+
+3. RESTRICTIONS
+
+Except as expressly permitted in section 2, you may NOT:
+
+  a. Copy, reproduce, or reuse any part of the Software, including code snippets,
+     algorithms, designs, or assets, in any other project, product, or service,
+     whether open source, closed source, free, or commercial.
+  b. Modify the Software and distribute, publish, or deploy the result, or create
+     derivative works for any purpose other than preparing Contributions.
+  c. Distribute, publish, sublicense, sell, rent, or lease the Software or any
+     build of it, including publishing it on any app store or download site.
+  d. Use the Software, or any part of it, to train a machine learning model or to
+     build a competing product or service.
+  e. Remove or alter any copyright, license, or attribution notice.
+
+4. CONTRIBUTIONS
+
+By submitting a Contribution, you:
+
+  a. Confirm that you wrote it, or have the right to submit it, and that it does
+     not infringe the rights of any third party.
+  b. Grant the Owner a perpetual, worldwide, irrevocable, royalty-free,
+     transferable license, with the right to sublicense, to use, reproduce,
+     modify, distribute, and otherwise exploit the Contribution as part of the
+     Software or in any other way, including under different license terms.
+  c. Understand that you receive no ownership of, or license to, the Software
+     through your Contribution, and that the Owner may accept, modify, or reject
+     any Contribution at its sole discretion.
+
+5. OWNERSHIP
+
+The Software is licensed, not sold. The Owner retains all right, title, and
+interest in the Software, including all intellectual property rights. No rights
+are granted except those expressly stated in this license.
+
+6. TERMINATION
+
+This license ends automatically if you breach any of its terms. On termination
+you must stop using the Software and delete all copies in your possession, other
+than copies held on the hosting platform's own forks, which the Owner may ask you
+to remove.
+
+7. NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. YOU USE THE SOFTWARE AT YOUR OWN
+RISK, INCLUDING THE RISK OF LOSS OR CORRUPTION OF MESSAGES ON YOUR DEVICE.
+
+8. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE OWNER SHALL NOT BE LIABLE FOR ANY
+CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT, OR OTHERWISE,
+ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+9. GENERAL
+
+This license is the entire agreement between you and the Owner about the
+Software. If any provision is held unenforceable, the rest remains in effect.
+For permission to use the Software in any way not allowed here, contact the
+Owner.
