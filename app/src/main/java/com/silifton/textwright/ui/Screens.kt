@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.text.format.DateFormat
 import android.text.format.DateUtils
+import android.util.Patterns
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -35,6 +36,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -45,7 +47,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -94,13 +95,20 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.silifton.textwright.R
 import com.silifton.textwright.data.Conversation
 import com.silifton.textwright.data.Message
@@ -135,6 +143,7 @@ fun TextwrightRoot(vm: MainViewModel, isDefault: Boolean, onRequestDefault: () -
                 Screen.Settings -> SettingsScreen(vm)
                 Screen.LockSettings -> LockSettingsScreen(vm, authenticate)
                 Screen.About -> AboutScreen(vm)
+                Screen.Search -> SearchScreen(vm)
             }
         }
     }
@@ -176,110 +185,84 @@ private fun SetupScreen(onRequestDefault: () -> Unit) {
 
 @Composable
 private fun ConversationListScreen(vm: MainViewModel) {
-    val all by vm.conversations.collectAsState()
-    var query by rememberSaveable { mutableStateOf("") }
-    val conversations = remember(all, query) {
-        val wanted = query.trim()
-        if (wanted.isEmpty()) all
-        else all.filter {
-            it.title.contains(wanted, ignoreCase = true) || it.address.contains(wanted) ||
-                it.snippet.contains(wanted, ignoreCase = true)
-        }
-    }
+    val conversations by vm.conversations.collectAsState()
+    val colors = MaterialTheme.colorScheme
     Scaffold(
-        topBar = { SearchBar(query, onQueryChange = { query = it }, onSettings = { vm.open(Screen.Settings) }) },
+        containerColor = colors.surfaceContainer,
+        topBar = {
+            Row(
+                modifier = Modifier.fillMaxWidth().statusBarsPadding().height(72.dp).padding(start = 20.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Textwright",
+                    modifier = Modifier.weight(1f),
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.onSurface,
+                )
+                IconButton(onClick = vm::openSearch) {
+                    Icon(Icons.Filled.Search, contentDescription = "Search", modifier = Modifier.size(26.dp))
+                }
+                IconButton(onClick = { vm.open(Screen.Settings) }) {
+                    Icon(Icons.Filled.Settings, contentDescription = "Settings", modifier = Modifier.size(26.dp))
+                }
+            }
+        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { vm.openCompose() },
-                icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                text = { Text("New message") },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+                icon = { Icon(painterResource(R.drawable.ic_chat), contentDescription = null) },
+                text = { Text("Start chat", fontSize = 16.sp) },
+                shape = RoundedCornerShape(18.dp),
+                containerColor = colors.primaryContainer,
+                contentColor = colors.onPrimaryContainer,
             )
         },
     ) { padding ->
-        if (conversations.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(32.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Box(
-                    modifier = Modifier.size(88.dp).clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
+        // The list sits on a sheet with rounded top corners, under the title bar.
+        Surface(
+            modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            color = colors.surface,
+        ) {
+            if (conversations.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(
-                        painterResource(R.drawable.ic_notification),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(40.dp),
+                    Box(
+                        modifier = Modifier.size(88.dp).clip(CircleShape).background(colors.primaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_chat),
+                            contentDescription = null,
+                            tint = colors.onPrimaryContainer,
+                            modifier = Modifier.size(40.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(20.dp))
+                    Text("No messages yet", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Messages you send and receive will show up here.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
                     )
                 }
-                Spacer(Modifier.height(20.dp))
-                Text(
-                    if (all.isEmpty()) "No messages yet" else "No conversations found",
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    if (all.isEmpty()) "Messages you send and receive will show up here."
-                    else "Nothing matches \"${query.trim()}\".",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                // Bottom space so the last row can scroll clear of the button.
-                contentPadding = PaddingValues(
-                    top = padding.calculateTopPadding(),
-                    bottom = padding.calculateBottomPadding() + 88.dp,
-                ),
-            ) {
-                items(conversations, key = { it.threadId }) { conversation ->
-                    ConversationRow(conversation) { vm.openThread(conversation.threadId, conversation.address) }
-                }
-            }
-        }
-    }
-}
-
-/** Search field across the top of the conversation list, with the way into settings beside it. */
-@Composable
-private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onSettings: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Surface {
-        Row(
-            modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Search conversations") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { onQueryChange("") }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear search")
-                        }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    // Bottom space so the last row can scroll clear of the button.
+                    contentPadding = PaddingValues(top = 8.dp, bottom = padding.calculateBottomPadding() + 96.dp),
+                ) {
+                    items(conversations, key = { it.threadId }) { conversation ->
+                        ConversationRow(conversation) { vm.openThread(conversation.threadId, conversation.address) }
                     }
-                },
-                singleLine = true,
-                shape = CircleShape,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = colors.surfaceContainerHigh,
-                    unfocusedContainerColor = colors.surfaceContainerHigh,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                ),
-            )
-            IconButton(onClick = onSettings) {
-                Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                }
             }
         }
     }
@@ -290,53 +273,54 @@ private fun ConversationRow(conversation: Conversation, onClick: () -> Unit) {
     val unread = conversation.unread > 0
     val colors = MaterialTheme.colorScheme
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        Avatar(conversation.title, conversation.address, 48.dp)
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    conversation.title,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (unread) FontWeight.Bold else FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    formatListTime(LocalContext.current, conversation.date),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (unread) colors.primary else colors.onSurfaceVariant,
-                    fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Normal,
-                )
-            }
+        Avatar(conversation.title, conversation.address, 56.dp)
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f).padding(top = 4.dp)) {
+            Text(
+                conversation.title,
+                fontSize = 18.sp,
+                fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal,
+                color = colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Spacer(Modifier.height(2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (conversation.outgoing) "You: ${conversation.snippet}" else conversation.snippet,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (unread) colors.onSurface else colors.onSurfaceVariant,
-                    fontWeight = if (unread) FontWeight.Medium else FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (unread) {
-                    Spacer(Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier.height(20.dp).widthIn(min = 20.dp).clip(CircleShape)
-                            .background(colors.primary).padding(horizontal = 6.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            if (conversation.unread > 99) "99+" else conversation.unread.toString(),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.onPrimary,
-                        )
-                    }
+            // Unread conversations get a second line of preview, as the message has not been seen yet.
+            Text(
+                if (conversation.outgoing) "You: ${conversation.snippet}" else conversation.snippet,
+                fontSize = 15.sp,
+                lineHeight = 20.sp,
+                color = if (unread) colors.onSurface else colors.onSurfaceVariant,
+                fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = if (unread) 2 else 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.padding(top = 6.dp), horizontalAlignment = Alignment.End) {
+            Text(
+                formatListTime(LocalContext.current, conversation.date),
+                fontSize = 13.sp,
+                color = if (unread) colors.onSurface else colors.onSurfaceVariant,
+                fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal,
+            )
+            if (unread) {
+                Spacer(Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier.height(20.dp).widthIn(min = 20.dp).clip(CircleShape)
+                        .background(colors.primaryContainer).padding(horizontal = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (conversation.unread > 99) "99+" else conversation.unread.toString(),
+                        fontSize = 12.sp,
+                        lineHeight = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.onPrimaryContainer,
+                    )
                 }
             }
         }
@@ -361,30 +345,15 @@ private fun ThreadScreen(vm: MainViewModel, screen: Screen.Thread) {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Avatar(title, screen.address, 36.dp)
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                title,
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (title != screen.address) {
-                                Text(
-                                    screen.address,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                )
-                            }
-                        }
+                        Avatar(title, screen.address, 40.dp)
+                        Spacer(Modifier.width(14.dp))
+                        Text(title, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 },
                 navigationIcon = { BackButton(vm::back) },
                 actions = {
                     IconButton(onClick = { dial(context, screen.address) }) {
-                        Icon(Icons.Filled.Call, contentDescription = "Call")
+                        Icon(Icons.Filled.Call, contentDescription = "Call", modifier = Modifier.size(26.dp))
                     }
                 },
             )
@@ -401,20 +370,21 @@ private fun ThreadScreen(vm: MainViewModel, screen: Screen.Thread) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             reverseLayout = true,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
         ) {
             // Newest first: index + 1 is the older neighbour, drawn above.
             itemsIndexed(messages, key = { _, message -> message.id }) { index, message ->
                 val older = messages.getOrNull(index + 1)
                 val newer = messages.getOrNull(index - 1)
-                val startsDay = older == null || dayOf(older.date) != dayOf(message.date)
+                val startsRun = older == null || startsRun(older, message)
                 Column(Modifier.fillMaxWidth()) {
-                    if (startsDay) DayHeader(message.date)
+                    if (startsRun) TimeHeader(message.date)
                     MessageBubble(
                         message = message,
-                        joinsOlder = !startsDay && older != null && sameGroup(older, message),
-                        joinsNewer = newer != null && dayOf(newer.date) == dayOf(message.date) && sameGroup(message, newer),
-                        simLabel = if (sims.size > 1) sims.firstOrNull { it.subId == message.subId }?.label else null,
+                        joinsOlder = !startsRun && older != null && older.isIncoming == message.isIncoming,
+                        joinsNewer = newer != null && !startsRun(message, newer) && newer.isIncoming == message.isIncoming,
+                        sim = if (sims.size > 1) sims.firstOrNull { it.subId == message.subId } else null,
+                        isLatest = index == 0,
                         onLongClick = { selected = message },
                     )
                 }
@@ -460,22 +430,22 @@ private fun ThreadScreen(vm: MainViewModel, screen: Screen.Thread) {
     }
 }
 
+/** Centred "Yesterday • 6:05 PM" line that opens each run of messages. */
 @Composable
-private fun DayHeader(millis: Long) {
-    Box(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
-        Text(
-            formatDay(LocalContext.current, millis),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainer)
-                .padding(horizontal = 12.dp, vertical = 4.dp),
-        )
-    }
+private fun TimeHeader(millis: Long) {
+    val context = LocalContext.current
+    Text(
+        "${formatDay(context, millis)} • ${DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_TIME)}",
+        fontSize = 13.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 12.dp),
+    )
 }
 
 /**
- * [joinsOlder] and [joinsNewer] say whether the bubble above or below belongs to the same run of messages;
- * joined bubbles sit closer and square off the corners between them.
+ * [joinsOlder] and [joinsNewer] say whether the bubble above or below belongs to the same run from the same
+ * side; joined bubbles square off the corners between them. Tapping a bubble shows its own time.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -483,23 +453,30 @@ private fun MessageBubble(
     message: Message,
     joinsOlder: Boolean,
     joinsNewer: Boolean,
-    simLabel: String?,
+    sim: Sim?,
+    isLatest: Boolean,
     onLongClick: () -> Unit,
 ) {
     val context = LocalContext.current
     val incoming = message.isIncoming
     val colors = MaterialTheme.colorScheme
     val dark = colors.surface.luminance() < 0.5f
-    val round = 20.dp
-    val joined = 6.dp
+    var expanded by remember(message.id) { mutableStateOf(false) }
+    val round = 22.dp
+    val joined = 4.dp
     val shape = if (incoming) {
         RoundedCornerShape(if (joinsOlder) joined else round, round, round, if (joinsNewer) joined else round)
     } else {
         RoundedCornerShape(round, if (joinsOlder) joined else round, if (joinsNewer) joined else round, round)
     }
+    val linkColor = when {
+        incoming -> colors.onSurface
+        dark -> colors.onPrimaryContainer
+        else -> colors.onPrimary
+    }
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = if (joinsOlder) 2.dp else 10.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = if (joinsOlder) 2.dp else 8.dp),
         horizontalAlignment = if (incoming) Alignment.Start else Alignment.End,
     ) {
         Surface(
@@ -508,40 +485,35 @@ private fun MessageBubble(
                 dark -> colors.primaryContainer
                 else -> colors.primary
             },
-            contentColor = when {
-                incoming -> colors.onSurface
-                dark -> colors.onPrimaryContainer
-                else -> colors.onPrimary
-            },
+            contentColor = linkColor,
             shape = shape,
             modifier = Modifier
-                .widthIn(max = 300.dp)
+                .fillMaxWidth(0.82f)
+                .wrapContentWidth(if (incoming) Alignment.Start else Alignment.End)
                 .clip(shape)
-                .combinedClickable(onClick = {}, onLongClick = onLongClick),
+                .combinedClickable(onClick = { expanded = !expanded }, onLongClick = onLongClick),
         ) {
             Text(
-                message.body,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                remember(message.body, linkColor) { withLinks(message.body, linkColor) },
+                fontSize = 16.sp,
+                lineHeight = 22.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             )
         }
-        // The time closes a run of messages; anything unusual about a message is always shown.
-        val flags = buildList {
+        // Anything unusual about a message is always shown; the time only on request.
+        val details = buildList {
+            if (expanded) add(DateUtils.formatDateTime(context, message.date, DateUtils.FORMAT_SHOW_TIME))
+            if (sim != null && (expanded || isLatest)) add(sim.name)
             if (message.isEdited) add("Edited")
             if (message.isSending) add("Sending…")
             if (message.isFailed) add("Not sent")
         }
-        if (!joinsNewer || flags.isNotEmpty()) {
-            val status = buildList {
-                add(DateUtils.formatDateTime(context, message.date, DateUtils.FORMAT_SHOW_TIME))
-                if (simLabel != null) add(simLabel)
-                addAll(flags)
-            }.joinToString(" · ")
+        if (details.isNotEmpty()) {
             Text(
-                status,
-                style = MaterialTheme.typography.labelSmall,
+                details.joinToString(" • "),
+                fontSize = 12.sp,
                 color = if (message.isFailed) colors.error else colors.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             )
         }
     }
@@ -745,28 +717,33 @@ private fun MessageInput(
 ) {
     var text by rememberSaveable { mutableStateOf(initial) }
     val colors = MaterialTheme.colorScheme
+    val sim = sims.firstOrNull { it.subId == selectedSubId }
     Surface {
         Row(
             modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
-            if (sims.size > 1) SimPicker(sims, selectedSubId, onSelectSim)
-            TextField(
-                value = text,
-                onValueChange = { text = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Text message") },
-                maxLines = 5,
-                shape = RoundedCornerShape(26.dp),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = colors.surfaceContainerHigh,
-                    unfocusedContainerColor = colors.surfaceContainerHigh,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                ),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-            )
+            Surface(color = colors.surfaceContainerHigh, shape = RoundedCornerShape(28.dp), modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    if (sims.size > 1) SimPicker(sims, selectedSubId, onSelectSim)
+                    TextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Text message", fontSize = 16.sp) },
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        maxLines = 5,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent,
+                        ),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    )
+                }
+            }
             Spacer(Modifier.width(8.dp))
             FilledIconButton(
                 onClick = {
@@ -774,21 +751,24 @@ private fun MessageInput(
                     text = ""
                 },
                 enabled = enabled && text.isNotBlank(),
-                modifier = Modifier.padding(bottom = 4.dp).size(48.dp),
+                modifier = Modifier.size(56.dp),
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    contentDescription = if (sim != null) "Send with ${sim.name}" else "Send",
+                )
             }
         }
     }
 }
 
-/** Shown only on multi-SIM phones: which SIM the next message goes out on. */
+/** Shown only on multi-SIM phones, inside the message field: which SIM the next message goes out on. */
 @Composable
 private fun SimPicker(sims: List<Sim>, selectedSubId: Int, onSelect: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    Box(Modifier.padding(bottom = 4.dp)) {
+    Box(Modifier.padding(start = 4.dp, bottom = 4.dp)) {
         TextButton(onClick = { open = true }) {
-            Text(sims.firstOrNull { it.subId == selectedSubId }?.label ?: "SIM")
+            Text(sims.firstOrNull { it.subId == selectedSubId }?.name ?: "SIM", fontSize = 15.sp)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             sims.forEach { sim ->
@@ -839,8 +819,7 @@ internal fun Avatar(title: String, seed: String, size: Dp) {
             Text(
                 initial.uppercase(),
                 color = Color.White,
-                style = if (size >= 44.dp) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
+                fontSize = (size.value * 0.44f).sp,
             )
         } else {
             Icon(Icons.Filled.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(size * 0.58f))
@@ -849,16 +828,33 @@ internal fun Avatar(title: String, seed: String, size: Dp) {
 }
 
 private const val DAY_MS = 86_400_000L
-private const val GROUP_MS = 5 * 60_000L
+private const val RUN_GAP_MS = 60 * 60_000L
 
 /** Local calendar day number, for telling whether two messages fall on the same day. */
 private fun dayOf(millis: Long): Long = (millis + TimeZone.getDefault().getOffset(millis)) / DAY_MS
 
-/** Messages from the same side, minutes apart, read as one run. */
-private fun sameGroup(older: Message, newer: Message): Boolean =
-    older.isIncoming == newer.isIncoming && newer.date - older.date < GROUP_MS
+/** A new run, with its own time header, starts on a new day or after an hour of silence. */
+private fun startsRun(older: Message, newer: Message): Boolean =
+    dayOf(older.date) != dayOf(newer.date) || newer.date - older.date > RUN_GAP_MS
 
-private fun formatListTime(context: Context, millis: Long): String {
+/** Underlines web addresses in a message and makes them open in the browser. */
+private fun withLinks(body: String, color: Color): AnnotatedString = buildAnnotatedString {
+    append(body)
+    val matcher = Patterns.WEB_URL.matcher(body)
+    while (matcher.find()) {
+        val url = matcher.group()
+        addLink(
+            LinkAnnotation.Url(
+                if (url.contains("://")) url else "https://$url",
+                TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline)),
+            ),
+            matcher.start(),
+            matcher.end(),
+        )
+    }
+}
+
+internal fun formatListTime(context: Context, millis: Long): String {
     val age = dayOf(System.currentTimeMillis()) - dayOf(millis)
     val flags = when {
         age == 0L -> DateUtils.FORMAT_SHOW_TIME
@@ -875,7 +871,7 @@ private fun formatDay(context: Context, millis: Long): String =
         else -> DateUtils.formatDateTime(
             context,
             millis,
-            DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_ABBREV_ALL,
+            DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_ABBREV_MONTH,
         )
     }
 

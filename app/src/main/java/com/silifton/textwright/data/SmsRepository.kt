@@ -30,6 +30,7 @@ class SmsRepository(context: Context) {
             Telephony.Sms.DATE,
             Telephony.Sms.READ,
             Telephony.Sms.TYPE,
+            Telephony.Sms.SUBSCRIPTION_ID,
         )
         resolver.query(Telephony.Sms.CONTENT_URI, projection, null, null, "${Telephony.Sms.DATE} DESC")?.use { c ->
             while (c.moveToNext()) {
@@ -46,6 +47,7 @@ class SmsRepository(context: Context) {
                         date = c.getLong(3),
                         unread = if (unread) 1 else 0,
                         outgoing = c.getInt(5) != Telephony.Sms.MESSAGE_TYPE_INBOX,
+                        subId = if (c.isNull(6)) -1 else c.getInt(6),
                     )
                 } else if (unread) {
                     byThread[threadId] = existing.copy(unread = existing.unread + 1)
@@ -89,6 +91,52 @@ class SmsRepository(context: Context) {
             }
         }
         return result
+    }
+
+    /** The newest message containing [query] in each conversation, newest first. */
+    fun searchMessages(query: String, limit: Int = 50): List<SearchHit> {
+        val escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        val seen = HashSet<Long>()
+        val hits = ArrayList<SearchHit>()
+        resolver.query(
+            Telephony.Sms.CONTENT_URI,
+            arrayOf(Telephony.Sms.THREAD_ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
+            "${Telephony.Sms.BODY} LIKE ? ESCAPE '\\'",
+            arrayOf("%$escaped%"),
+            "${Telephony.Sms.DATE} DESC",
+        )?.use { c ->
+            while (c.moveToNext() && hits.size < limit) {
+                val threadId = c.getLong(0)
+                if (!seen.add(threadId)) continue
+                val address = c.getString(1).orEmpty()
+                hits += SearchHit(threadId, address, contactName(address) ?: address, c.getString(2).orEmpty(), c.getLong(3))
+            }
+        }
+        return hits
+    }
+
+    /** Contacts with a phone number whose name or number matches [query]. Empty without the contacts permission. */
+    fun searchContacts(query: String, limit: Int = 5): List<ContactHit> {
+        if (context.checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            return emptyList()
+        }
+        val uri = Uri.withAppendedPath(ContactsContract.CommonDataKinds.Phone.CONTENT_FILTER_URI, Uri.encode(query))
+        val seen = HashSet<String>()
+        val hits = ArrayList<ContactHit>()
+        resolver.query(
+            uri,
+            arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
+            null,
+            null,
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+        )?.use { c ->
+            while (c.moveToNext() && hits.size < limit) {
+                val name = c.getString(0) ?: continue
+                val number = c.getString(1) ?: continue
+                if (seen.add(name)) hits += ContactHit(name, number)
+            }
+        }
+        return hits
     }
 
     fun threadIdFor(address: String): Long = Telephony.Threads.getOrCreateThreadId(context, address)

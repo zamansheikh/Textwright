@@ -6,10 +6,15 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Telephony
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.silifton.textwright.data.Conversation
 import com.silifton.textwright.data.Message
+import com.silifton.textwright.data.SearchHit
+import com.silifton.textwright.data.SearchResults
 import com.silifton.textwright.data.Sim
 import com.silifton.textwright.data.SmsRepository
 import com.silifton.textwright.sms.Notifier
@@ -19,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed interface Screen {
     data object List : Screen
@@ -27,6 +33,7 @@ sealed interface Screen {
     data object Settings : Screen
     data object LockSettings : Screen
     data object About : Screen
+    data object Search : Screen
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -86,6 +93,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openThread(threadId: Long, address: String) {
         _messages.value = emptyList()
+        threadOpenedFromSearch = _screen.value == Screen.Search
         _screen.value = Screen.Thread(threadId, address)
         Notifier.cancel(getApplication(), threadId)
         viewModelScope.launch(Dispatchers.IO) {
@@ -104,6 +112,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _screen.value = Screen.Compose(address, body)
     }
 
+    /** Kept here so the search is still there when coming back from a conversation it opened. */
+    var searchQuery by mutableStateOf("")
+
+    private var threadOpenedFromSearch = false
+
+    fun openSearch() {
+        searchQuery = ""
+        _screen.value = Screen.Search
+    }
+
+    /** Conversations whose name, number or any message contains [query], and matching contacts. */
+    suspend fun search(query: String): SearchResults = withContext(Dispatchers.IO) {
+        runCatching {
+            val inMessages = repo.searchMessages(query)
+            val found = inMessages.mapTo(HashSet()) { it.threadId }
+            val byName = _conversations.value
+                .filter { it.threadId !in found && (it.title.contains(query, true) || it.address.contains(query)) }
+                .map { SearchHit(it.threadId, it.address, it.title, it.snippet, it.date) }
+            SearchResults((inMessages + byName).sortedByDescending { it.date }, repo.searchContacts(query))
+        }.getOrDefault(SearchResults.Empty)
+    }
+
+    /** Opens the conversation with [address], creating it if there is none yet. */
+    fun openAddress(address: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { openThread(repo.threadIdFor(address), address) }
+        }
+    }
+
     fun open(screen: Screen) {
         _screen.value = screen
     }
@@ -115,6 +152,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun back() {
         _screen.value = when (_screen.value) {
             Screen.LockSettings, Screen.About -> Screen.Settings
+            is Screen.Thread -> if (threadOpenedFromSearch) Screen.Search else Screen.List
             else -> Screen.List
         }
     }

@@ -33,8 +33,8 @@ Textwright is a native Android messaging app built with Kotlin and Jetpack Compo
 - **Crash-safe edits**: an edit interrupted by a crash or app kill is finished or cleaned up on the next launch.
 - **App lock**: require a pattern, or your fingerprint, every time the app is opened (see [App lock](#app-lock)).
 - **Settings**: light, dark or system theme, wallpaper colours, notification privacy, screenshot blocking (see [Settings](#settings)).
-- **Search**: filter conversations by name, number or latest message.
-- **Conversation view**: grouped message bubbles, day separators, contact avatars, unread counts, and a call shortcut.
+- **Search**: find conversations by name, number or any message text, with matches highlighted; filter by unread, known or unknown senders, and by SIM; start a chat from a matching contact.
+- **Conversation view**: grouped message bubbles under time headers, tappable links, tap a bubble for its time, contact avatars, unread counts, and a call shortcut.
 - **Send and receive SMS**: conversation list, threads, new message, reply.
 - **Dual-SIM support**: pick the SIM to send from; replies default to the SIM the conversation last used.
 - **Contact names**: conversations show contact names when the contacts permission is granted.
@@ -44,7 +44,7 @@ Textwright is a native Android messaging app built with Kotlin and Jetpack Compo
 ### Not yet supported
 - MMS (receiving is stubbed; sending and viewing are not implemented)
 - RCS, group messaging, attachments
-- Search inside message history, backup and restore, archived and blocked conversations
+- Backup and restore, archived and blocked conversations
 - Tablets and foldables (layout not tuned)
 
 ## How edits work
@@ -152,7 +152,7 @@ app/src/main/java/com/silifton/textwright/
 ├── security/
 │   └── AppLock.kt           app lock state, pattern hash, attempt lockout
 ├── sms/                     receivers, sender, SIM helpers, notifications
-└── ui/                      Compose screens (messages, settings, about, lock), view model, theme
+└── ui/                      Compose screens (messages, search, settings, about, lock), view model, theme
 ```
 
 - **UI:** Jetpack Compose, Material 3.
@@ -167,7 +167,7 @@ The aim is a full-featured default messaging app. Rough order of priority:
 - [ ] Samsung Messages and other apps: test and handle their re-sync behaviour
 - [ ] MMS and attachments
 - [ ] Unit and instrumented tests, CI
-- [ ] Search inside message history
+- [ ] Search: jump to the matching message inside a conversation
 - [ ] Backup and restore, including Textwright's saved originals
 - [ ] Archive, mute, block and spam handling
 - [ ] Group messaging
