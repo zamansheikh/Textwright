@@ -195,7 +195,7 @@ private fun ConversationListScreen(vm: MainViewModel) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Textwright",
+                    "Messages",
                     modifier = Modifier.weight(1f),
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Medium,
