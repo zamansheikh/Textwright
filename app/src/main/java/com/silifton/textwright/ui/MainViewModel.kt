@@ -127,7 +127,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun edit(message: Message, newBody: String) = write { repo.editBody(message, newBody) }
+    fun edit(message: Message, newBody: String, newDate: Long) = write { repo.editMessage(message, newBody, newDate) }
 
     fun restore(message: Message) = write { repo.restore(message) }
 

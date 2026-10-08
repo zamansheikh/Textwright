@@ -56,7 +56,7 @@ class SmsRepository(context: Context) {
 
     /** Newest first. */
     fun messages(threadId: Long): List<Message> {
-        val originals = edits.originals()
+        val originals = edits.originals(dateOf = { id -> dateOfRow(id) })
         val result = ArrayList<Message>()
         val projection = arrayOf(
             Telephony.Sms._ID,
@@ -83,7 +83,7 @@ class SmsRepository(context: Context) {
                     date = c.getLong(3),
                     type = c.getInt(4),
                     subId = if (c.isNull(5)) -1 else c.getInt(5),
-                    originalBody = originals[id],
+                    original = originals[id],
                 )
             }
         }
@@ -92,19 +92,23 @@ class SmsRepository(context: Context) {
 
     fun threadIdFor(address: String): Long = Telephony.Threads.getOrCreateThreadId(context, address)
 
-    /** Changes the stored text on this device only; the other party's copy is untouched. */
-    fun editBody(message: Message, newBody: String) {
-        if (newBody == message.body) return
-        if (newBody == message.originalBody) {
+    /**
+     * Changes the stored text and/or date on this device only; the other party's copy is untouched.
+     * Restores the original instead when both values match what the message first had.
+     */
+    fun editMessage(message: Message, newBody: String, newDate: Long) {
+        if (newBody == message.body && newDate == message.date) return
+        val original = message.original ?: EditStore.Original(message.body, message.date)
+        if (newBody == original.body && newDate == original.date) {
             restore(message)
             return
         }
-        replaceBody(message, newBody, record = message.originalBody ?: message.body)
+        replaceBody(message, newBody, newDate, record = original)
     }
 
     fun restore(message: Message) {
-        val original = message.originalBody ?: return
-        replaceBody(message, original, record = null)
+        val original = message.original ?: return
+        replaceBody(message, original.body, original.date, record = null)
     }
 
     fun delete(messageId: Long) {
@@ -142,13 +146,13 @@ class SmsRepository(context: Context) {
     }
 
     /**
-     * Other messaging apps keep their own copy and ignore in-place body changes, so the
+     * Other messaging apps keep their own copy and ignore in-place changes, so the
      * edit is written as a fresh row (same metadata, new body) and the old row is removed.
-     * [record] is the original text to remember for the new row, or null to clear the edit marker.
+     * [record] is the original text and date to remember for the new row, or null to clear the edit marker.
      * The step is journaled in [EditStore] so [recoverPending] can finish it after a crash.
      * Returns false if anything failed (the old row is left intact then).
      */
-    private fun replaceBody(message: Message, body: String, record: String?): Boolean = synchronized(replaceLock) {
+    private fun replaceBody(message: Message, body: String, date: Long, record: EditStore.Original?): Boolean = synchronized(replaceLock) {
         val columns = arrayOf(
             Telephony.Sms.THREAD_ID, Telephony.Sms.ADDRESS, Telephony.Sms.DATE, Telephony.Sms.DATE_SENT,
             Telephony.Sms.READ, Telephony.Sms.SEEN, Telephony.Sms.TYPE, Telephony.Sms.STATUS,
@@ -167,10 +171,11 @@ class SmsRepository(context: Context) {
         } ?: false
         if (!found) return@synchronized false
         values.put(Telephony.Sms.BODY, body)
+        values.put(Telephony.Sms.DATE, date)
         val pending = EditStore.Pending(
             message.id,
             values.getAsLong(Telephony.Sms.THREAD_ID),
-            values.getAsLong(Telephony.Sms.DATE),
+            date,
             body,
             record,
         )
@@ -189,6 +194,11 @@ class SmsRepository(context: Context) {
         finishReplace(pending, newId)
         true
     }
+
+    private fun dateOfRow(messageId: Long): Long =
+        resolver.query(messageUri(messageId), arrayOf(Telephony.Sms.DATE), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getLong(0) else 0L
+        } ?: 0L
 
     private fun isDefaultSmsApp(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

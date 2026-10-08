@@ -1,6 +1,11 @@
 package com.silifton.textwright.ui
 
 import android.content.ClipData
+import java.util.Date
+import java.util.Calendar
+import android.text.format.DateFormat
+import android.app.TimePickerDialog
+import android.app.DatePickerDialog
 import android.content.ClipboardManager
 import android.content.Context
 import android.text.format.DateUtils
@@ -232,8 +237,8 @@ private fun ThreadScreen(vm: MainViewModel, screen: Screen.Thread) {
         EditDialog(
             message = message,
             onDismiss = { editing = null },
-            onSave = {
-                vm.edit(message, it)
+            onSave = { body, date ->
+                vm.edit(message, body, date)
                 editing = null
             },
         )
@@ -311,8 +316,13 @@ private fun MessageBubble(
 }
 
 @Composable
-private fun EditDialog(message: Message, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+private fun EditDialog(message: Message, onDismiss: () -> Unit, onSave: (String, Long) -> Unit) {
+    val context = LocalContext.current
     var text by rememberSaveable(message.id) { mutableStateOf(message.body) }
+    var date by rememberSaveable(message.id) { mutableStateOf(message.date) }
+    fun withDate(change: Calendar.() -> Unit) {
+        date = Calendar.getInstance().apply { timeInMillis = date; change() }.timeInMillis
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Edit message") },
@@ -325,6 +335,32 @@ private fun EditDialog(message: Message, onDismiss: () -> Unit, onSave: (String)
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 )
                 Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = {
+                        val cal = Calendar.getInstance().apply { timeInMillis = date }
+                        DatePickerDialog(
+                            context,
+                            { _, y, m, d -> withDate { set(y, m, d) } },
+                            cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH),
+                        ).show()
+                    }) { Text(DateFormat.getMediumDateFormat(context).format(Date(date))) }
+                    TextButton(onClick = {
+                        val cal = Calendar.getInstance().apply { timeInMillis = date }
+                        TimePickerDialog(
+                            context,
+                            { _, h, m ->
+                                withDate {
+                                    set(Calendar.HOUR_OF_DAY, h)
+                                    set(Calendar.MINUTE, m)
+                                    set(Calendar.SECOND, 0)
+                                    set(Calendar.MILLISECOND, 0)
+                                }
+                            },
+                            cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE),
+                            DateFormat.is24HourFormat(context),
+                        ).show()
+                    }) { Text(DateFormat.getTimeFormat(context).format(Date(date))) }
+                }
                 Text(
                     "Changes the copy on this phone only. The other person's copy stays the same.",
                     style = MaterialTheme.typography.bodySmall,
@@ -333,9 +369,10 @@ private fun EditDialog(message: Message, onDismiss: () -> Unit, onSave: (String)
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(text) }, enabled = text.isNotBlank() && text != message.body) {
-                Text("Save")
-            }
+            TextButton(
+                onClick = { onSave(text, date) },
+                enabled = text.isNotBlank() && (text != message.body || date != message.date),
+            ) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

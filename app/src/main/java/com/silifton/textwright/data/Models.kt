@@ -30,11 +30,11 @@ data class Message(
     val type: Int,
     /** Subscription the message was sent or received on, or -1 if unknown. */
     val subId: Int,
-    /** Text the message had before its first edit in Textwright, or null if never edited. */
-    val originalBody: String?,
+    /** Text and date the message had before its first edit in Textwright, or null if never edited. */
+    val original: EditStore.Original?,
 ) {
     val isIncoming: Boolean get() = type == Telephony.Sms.MESSAGE_TYPE_INBOX
     val isFailed: Boolean get() = type == Telephony.Sms.MESSAGE_TYPE_FAILED
     val isSending: Boolean get() = type == Telephony.Sms.MESSAGE_TYPE_OUTBOX
-    val isEdited: Boolean get() = originalBody != null
+    val isEdited: Boolean get() = original != null
 }
