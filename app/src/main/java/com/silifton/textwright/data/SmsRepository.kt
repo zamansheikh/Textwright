@@ -96,12 +96,14 @@ class SmsRepository(context: Context) {
             restore(message)
             return
         }
-        if (updateBody(message.id, newBody)) edits.record(message.id, message.body)
+        val newId = replaceBody(message, newBody) ?: return
+        edits.remove(message.id)
+        edits.record(newId, message.originalBody ?: message.body)
     }
 
     fun restore(message: Message) {
         val original = message.originalBody ?: return
-        if (updateBody(message.id, original)) edits.remove(message.id)
+        if (replaceBody(message, original) != null) edits.remove(message.id)
     }
 
     fun delete(messageId: Long) {
@@ -138,9 +140,38 @@ class SmsRepository(context: Context) {
         return name
     }
 
-    private fun updateBody(messageId: Long, body: String): Boolean {
-        val values = ContentValues().apply { put(Telephony.Sms.BODY, body) }
-        return resolver.update(messageUri(messageId), values, null, null) > 0
+    /**
+     * Other messaging apps keep their own copy and ignore in-place body changes, so the
+     * edit is written as a fresh row (same metadata, new body) and the old row is removed.
+     * Returns the new row id, or null if anything failed (the old row is left intact then).
+     */
+    private fun replaceBody(message: Message, body: String): Long? {
+        val columns = arrayOf(
+            Telephony.Sms.THREAD_ID, Telephony.Sms.ADDRESS, Telephony.Sms.DATE, Telephony.Sms.DATE_SENT,
+            Telephony.Sms.READ, Telephony.Sms.SEEN, Telephony.Sms.TYPE, Telephony.Sms.STATUS,
+            Telephony.Sms.SUBSCRIPTION_ID, Telephony.Sms.SERVICE_CENTER, Telephony.Sms.PROTOCOL,
+            Telephony.Sms.LOCKED,
+        )
+        val values = ContentValues()
+        val found = resolver.query(messageUri(message.id), columns, null, null, null)?.use { c ->
+            if (!c.moveToFirst()) return@use false
+            for ((i, name) in columns.withIndex()) {
+                if (c.isNull(i)) continue
+                if (c.getType(i) == android.database.Cursor.FIELD_TYPE_INTEGER) values.put(name, c.getLong(i))
+                else values.put(name, c.getString(i))
+            }
+            true
+        } ?: false
+        if (!found) return null
+        values.put(Telephony.Sms.BODY, body)
+        val newUri = resolver.insert(Telephony.Sms.CONTENT_URI, values) ?: return null
+        val newId = ContentUris.parseId(newUri)
+        if (newId <= 0) return null
+        if (resolver.delete(messageUri(message.id), null, null) <= 0) {
+            resolver.delete(newUri, null, null)
+            return null
+        }
+        return newId
     }
 
     private fun messageUri(messageId: Long): Uri =
