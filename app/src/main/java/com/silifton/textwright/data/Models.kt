@@ -39,11 +39,18 @@ data class Message(
     val subId: Int,
     /** Text and date the message had before its first edit in Textwright, or null if never edited. */
     val original: EditStore.Original?,
+    /** True when the message was added by hand in Textwright rather than sent or received. */
+    val added: Boolean = false,
+    /** Delivery report state: one of the Telephony.Sms STATUS_ values, STATUS_NONE when no report was asked for. */
+    val status: Int = Telephony.Sms.STATUS_NONE,
 ) {
     val isIncoming: Boolean get() = type == Telephony.Sms.MESSAGE_TYPE_INBOX
     val isFailed: Boolean get() = type == Telephony.Sms.MESSAGE_TYPE_FAILED
     val isSending: Boolean get() = type == Telephony.Sms.MESSAGE_TYPE_OUTBOX
     val isEdited: Boolean get() = original != null
+    val isDelivered: Boolean get() = !isIncoming && status == Telephony.Sms.STATUS_COMPLETE
+    val isAwaitingDelivery: Boolean get() = !isIncoming && status == Telephony.Sms.STATUS_PENDING
+    val isUndelivered: Boolean get() = !isIncoming && status == Telephony.Sms.STATUS_FAILED
 }
 
 /** A conversation found by search. [body] is the message, or latest message, that matched. */

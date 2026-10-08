@@ -20,6 +20,7 @@ object AppSettings {
     private const val KEY_DYNAMIC = "dynamic_color"
     private const val KEY_PREVIEW = "notification_preview"
     private const val KEY_SECURE = "block_screenshots"
+    private const val KEY_DELIVERY = "delivery_reports"
 
     var themeMode by mutableStateOf(ThemeMode.System)
         private set
@@ -34,12 +35,17 @@ object AppSettings {
     var blockScreenshots by mutableStateOf(false)
         private set
 
+    /** Ask the network to confirm delivery of each sent message. Off by default: not every carrier supports it. */
+    var deliveryReports by mutableStateOf(false)
+        private set
+
     fun load(context: Context) {
         val prefs = prefs(context)
         themeMode = ThemeMode.entries.getOrElse(prefs.getInt(KEY_THEME, 0)) { ThemeMode.System }
         dynamicColor = prefs.getBoolean(KEY_DYNAMIC, false)
         notificationPreview = prefs.getBoolean(KEY_PREVIEW, true)
         blockScreenshots = prefs.getBoolean(KEY_SECURE, false)
+        deliveryReports = prefs.getBoolean(KEY_DELIVERY, false)
     }
 
     fun setThemeMode(context: Context, mode: ThemeMode) {
@@ -61,6 +67,14 @@ object AppSettings {
         blockScreenshots = on
         prefs(context).edit().putBoolean(KEY_SECURE, on).apply()
     }
+
+    fun setDeliveryReports(context: Context, on: Boolean) {
+        deliveryReports = on
+        prefs(context).edit().putBoolean(KEY_DELIVERY, on).apply()
+    }
+
+    /** Read straight from disk: messages can be sent from a service, where [load] may not have run. */
+    fun deliveryReports(context: Context): Boolean = prefs(context).getBoolean(KEY_DELIVERY, false)
 
     /** Read straight from disk: notifications are posted from a receiver, where [load] may not have run. */
     fun notificationPreview(context: Context): Boolean = prefs(context).getBoolean(KEY_PREVIEW, true)

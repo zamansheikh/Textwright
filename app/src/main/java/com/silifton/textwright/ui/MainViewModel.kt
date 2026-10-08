@@ -180,7 +180,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun restore(message: Message) = write { repo.restore(message) }
 
-    fun delete(message: Message) = write { repo.delete(message.id) }
+    /** The most recent deletion, while it can still be undone. */
+    private var lastDeleted: SmsRepository.Deleted? = null
+
+    fun delete(message: Message) = write { lastDeleted = repo.delete(message) }
+
+    fun undoDelete() = write {
+        lastDeleted?.let { repo.undelete(it) }
+        lastDeleted = null
+    }
+
+    /** Adds a message to the open conversation on this phone only; nothing is sent. */
+    fun addMessage(thread: Screen.Thread, body: String, date: Long, incoming: Boolean) = write {
+        repo.addMessage(thread.threadId, thread.address, body, date, incoming, _sendSubId.value)
+    }
 
     private fun write(block: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {

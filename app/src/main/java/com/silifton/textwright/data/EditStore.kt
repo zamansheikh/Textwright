@@ -10,13 +10,15 @@ import android.database.sqlite.SQLiteOpenHelper
  * can be marked in the UI and undone. The system SMS store has no such field.
  */
 class EditStore private constructor(context: Context) :
-    SQLiteOpenHelper(context, "edits.db", null, 3) {
+    SQLiteOpenHelper(context, "edits.db", null, 5) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             "CREATE TABLE edits (msg_id INTEGER PRIMARY KEY, original TEXT NOT NULL, edited_at INTEGER NOT NULL, original_date INTEGER)"
         )
         createPending(db)
+        createAdded(db)
+        createMoved(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -24,6 +26,8 @@ class EditStore private constructor(context: Context) :
         if (oldVersion < 3) db.execSQL("ALTER TABLE edits ADD COLUMN original_date INTEGER")
         // Only a v2 database has a pending table without record_date; createPending above already includes it.
         if (oldVersion == 2) db.execSQL("ALTER TABLE pending ADD COLUMN record_date INTEGER")
+        if (oldVersion < 4) createAdded(db)
+        if (oldVersion < 5) createMoved(db)
     }
 
     private fun createPending(db: SQLiteDatabase) {
@@ -31,6 +35,61 @@ class EditStore private constructor(context: Context) :
             "CREATE TABLE IF NOT EXISTS pending (old_id INTEGER PRIMARY KEY, thread_id INTEGER NOT NULL, " +
                 "date INTEGER NOT NULL, new_body TEXT NOT NULL, record TEXT, record_date INTEGER)"
         )
+    }
+
+    private fun createAdded(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS added (msg_id INTEGER PRIMARY KEY)")
+    }
+
+    private fun createMoved(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS moved (old_id INTEGER PRIMARY KEY, new_id INTEGER NOT NULL, at INTEGER NOT NULL)")
+    }
+
+    /**
+     * Remembers that an edit replaced row [oldId] with [newId] while a delivery report was still due,
+     * so the report can find the message. Entries that never get a report are dropped after a week.
+     */
+    fun recordMove(oldId: Long, newId: Long) {
+        val now = System.currentTimeMillis()
+        val values = ContentValues().apply {
+            put("old_id", oldId)
+            put("new_id", newId)
+            put("at", now)
+        }
+        val db = writableDatabase
+        db.insertWithOnConflict("moved", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        db.delete("moved", "at < ?", arrayOf((now - 7 * 86_400_000L).toString()))
+    }
+
+    /** The row that now holds message [id], following any replacements, and forgetting them. */
+    fun takeCurrentId(id: Long): Long {
+        var current = id
+        val db = writableDatabase
+        while (true) {
+            val next = db.rawQuery("SELECT new_id FROM moved WHERE old_id = ?", arrayOf(current.toString())).use { c ->
+                if (c.moveToFirst()) c.getLong(0) else null
+            } ?: return current
+            db.delete("moved", "old_id = ?", arrayOf(current.toString()))
+            current = next
+        }
+    }
+
+    /** Marks a message as written into the store by hand in Textwright, not sent or received. */
+    fun markAdded(messageId: Long) {
+        val values = ContentValues().apply { put("msg_id", messageId) }
+        writableDatabase.insertWithOnConflict("added", null, values, SQLiteDatabase.CONFLICT_IGNORE)
+    }
+
+    /** Returns true if the message carried the mark. */
+    fun unmarkAdded(messageId: Long): Boolean =
+        writableDatabase.delete("added", "msg_id = ?", arrayOf(messageId.toString())) > 0
+
+    fun added(): Set<Long> {
+        val result = HashSet<Long>()
+        readableDatabase.rawQuery("SELECT msg_id FROM added", null).use { c ->
+            while (c.moveToNext()) result += c.getLong(0)
+        }
+        return result
     }
 
     /** What a message looked like before its first edit in Textwright. */

@@ -101,6 +101,11 @@ fun SettingsScreen(vm: MainViewModel) {
 
             SectionDivider()
             SectionHeader("Messaging")
+            SwitchRow(
+                "Delivery reports",
+                "Ask the network to confirm that each message you send was delivered",
+                AppSettings.deliveryReports,
+            ) { AppSettings.setDeliveryReports(context, it) }
             SettingRow("Default SMS app", "Textwright. Tap to switch to another app", onClick = {
                 open(context, Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
             })
@@ -174,7 +179,7 @@ fun AboutScreen(vm: MainViewModel) {
             InfoCard(
                 "Responsible use",
                 "Textwright is not a tool for fabricating evidence or misleading anyone about what was said. " +
-                    "It can't change who sent a message or create received messages, and tapping an edited message shows it was edited.",
+                    "It can't change who a conversation is with, and tapping a message shows whether it was edited or added by hand.",
             )
             InfoCard(
                 "Your data",

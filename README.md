@@ -9,7 +9,7 @@
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?logo=android&logoColor=white)](#requirements)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![Version](https://img.shields.io/badge/version-0.2.1-4F46E5)](#roadmap)
+[![Version](https://img.shields.io/badge/version-0.3.0-4F46E5)](#roadmap)
 [![License](https://img.shields.io/badge/license-source--available-7C3AED)](LICENSE)
 
 [Features](#features) · [How edits work](#how-edits-work) · [App lock](#app-lock) · [Settings](#settings) · [Getting started](#getting-started) · [Roadmap](#roadmap) · [License](#license)
@@ -20,7 +20,7 @@
 
 Textwright is a native Android messaging app built with Kotlin and Jetpack Compose. It starts from one idea: the messages stored on *your* phone should be yours to edit. Today it is a working SMS client that can change the text and timestamp of stored messages, restore the originals, and keep itself behind a pattern or fingerprint lock. The goal is a complete, modern default messaging app.
 
-> **Status:** early development (`v0.2.1`). Usable and tested on a small number of devices, but expect rough edges and breaking changes. See the [roadmap](#roadmap).
+> **Status:** early development (`v0.3.0`). Usable and tested on a small number of devices, but expect rough edges and breaking changes. See the [roadmap](#roadmap).
 
 <p align="center">
   <img src="docs/screenshots-messaging.png" alt="Conversation list, a conversation with an edited message, and the edit dialog" width="900">
@@ -35,6 +35,8 @@ Textwright is a native Android messaging app built with Kotlin and Jetpack Compo
 - **Edit message text**: change what a stored message says.
 - **Edit message date and time**: change the timestamp a message shows.
 - **Restore original**: undo any edit and bring back the original text *and* date. Textwright keeps the first original, however many times you edit.
+- **Add a message**: write a message back into a conversation as received or sent, with its own date and time. Meant for putting back a message you deleted. Nothing is sent.
+- **Undo delete**: a deleted message can be put back for a few seconds, with its edit history.
 - **Edited marker**: tap a message to see whether it was edited, along with its time.
 - **Syncs with other messaging apps**: edits are written so that Google Messages shows them when it becomes the default app again (see [How edits work](#how-edits-work)).
 - **Crash-safe edits**: an edit interrupted by a crash or app kill is finished or cleaned up on the next launch.
@@ -43,6 +45,7 @@ Textwright is a native Android messaging app built with Kotlin and Jetpack Compo
 - **Search**: find conversations by name, number or any message text, with matches highlighted; filter by unread, known or unknown senders, and by SIM; start a chat from a matching contact.
 - **Conversation view**: grouped message bubbles under time headers, tappable links, tap a bubble for its time, contact avatars, unread counts, and a call shortcut.
 - **Send and receive SMS**: conversation list, threads, new message, reply.
+- **Delivery reports**: optionally ask the network to confirm each sent message was delivered; the result shows under the message. Depends on carrier support.
 - **Dual-SIM support**: pick the SIM to send from; replies default to the SIM the conversation last used.
 - **Contact names**: conversations show contact names when the contacts permission is granted.
 - **Notifications** for incoming messages.
@@ -96,12 +99,13 @@ Open settings with the gear icon on the conversation list.
 | Notifications | Sound, vibration and more | Opens the system notification settings for the app |
 | Privacy and security | App lock | Pattern and fingerprint lock (see [App lock](#app-lock)) |
 | Privacy and security | Block screenshots | Blocks screenshots and hides the app in the recent apps screen |
+| Messaging | Delivery reports | Ask the network to confirm delivery of each sent message (off by default) |
 | Messaging | Default SMS app | Opens the system default apps screen |
 | About | About Textwright | Version, how edits work, source and license links |
 
 ## Responsible use
 
-Textwright edits the copy of your messages on your own device. It is not a tool for fabricating evidence, impersonating others, or misleading anyone about what was said. It deliberately does **not** let you edit the sender of a message or create fake received messages. Tapping an edited message in Textwright shows an "Edited" marker. Please use it lawfully.
+Textwright edits the copy of your messages on your own device. It is not a tool for fabricating evidence, impersonating others, or misleading anyone about what was said. It deliberately does **not** let you change who a conversation is with. Messages can be added to a conversation by hand so that a deleted message can be put back; these are stored on your phone only, never sent, and tapping one shows an "Added" marker. Tapping an edited message in Textwright shows an "Edited" marker. Please use it lawfully.
 
 ## Requirements
 
@@ -166,7 +170,7 @@ app/src/main/java/com/silifton/textwright/
 │   └── Models.kt            Conversation, Message, Sim
 ├── security/
 │   └── AppLock.kt           app lock state, pattern hash, attempt lockout
-├── sms/                     receivers, sender, SIM helpers, notifications
+├── sms/                     receivers (incoming, send result, delivery report), sender, SIM helpers, notifications
 └── ui/                      Compose screens (messages, search, settings, about, lock), view model, theme
 ```
 

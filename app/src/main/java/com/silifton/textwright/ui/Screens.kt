@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -70,6 +71,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -84,6 +92,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -115,6 +124,7 @@ import com.silifton.textwright.data.Message
 import com.silifton.textwright.data.Sim
 import com.silifton.textwright.security.AppLock
 import java.util.Calendar
+import kotlinx.coroutines.launch
 import java.util.Date
 import java.util.TimeZone
 
@@ -338,9 +348,14 @@ private fun ThreadScreen(vm: MainViewModel, screen: Screen.Thread) {
     var selected by remember { mutableStateOf<Message?>(null) }
     var editing by remember { mutableStateOf<Message?>(null) }
     var deleting by remember { mutableStateOf<Message?>(null) }
+    var adding by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = Modifier.imePadding(),
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 title = {
@@ -354,6 +369,20 @@ private fun ThreadScreen(vm: MainViewModel, screen: Screen.Thread) {
                 actions = {
                     IconButton(onClick = { dial(context, screen.address) }) {
                         Icon(Icons.Filled.Call, contentDescription = "Call", modifier = Modifier.size(26.dp))
+                    }
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "More options")
+                        }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Add message") },
+                                onClick = {
+                                    menuOpen = false
+                                    adding = true
+                                },
+                            )
+                        }
                     }
                 },
             )
@@ -414,15 +443,29 @@ private fun ThreadScreen(vm: MainViewModel, screen: Screen.Thread) {
         )
     }
 
+    if (adding) {
+        AddMessageDialog(
+            onDismiss = { adding = false },
+            onSave = { body, date, incoming ->
+                vm.addMessage(screen, body.trim(), date, incoming)
+                adding = false
+            },
+        )
+    }
+
     deleting?.let { message ->
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("Delete message?") },
-            text = { Text("This removes it from this device and can't be undone.") },
+            text = { Text("This removes it from this phone. You can undo it for a few seconds afterwards.") },
             confirmButton = {
                 TextButton(onClick = {
                     vm.delete(message)
                     deleting = null
+                    scope.launch {
+                        val result = snackbar.showSnackbar("Message deleted", "Undo", duration = SnackbarDuration.Long)
+                        if (result == SnackbarResult.ActionPerformed) vm.undoDelete()
+                    }
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
@@ -506,14 +549,18 @@ private fun MessageBubble(
             if (expanded) add(DateUtils.formatDateTime(context, message.date, DateUtils.FORMAT_SHOW_TIME))
             if (sim != null && (expanded || isLatest)) add(sim.name)
             if (message.isEdited && expanded) add("Edited")
+            if (message.added && expanded) add("Added")
             if (message.isSending) add("Sending…")
             if (message.isFailed) add("Not sent")
+            if (message.isUndelivered) add("Not delivered")
+            if (message.isDelivered && (expanded || isLatest)) add("Delivered")
+            if (message.isAwaitingDelivery && expanded && !message.isSending && !message.isFailed) add("Sent, no delivery report yet")
         }
         if (details.isNotEmpty()) {
             Text(
                 details.joinToString(" • "),
                 fontSize = 12.sp,
-                color = if (message.isFailed) colors.error else colors.onSurfaceVariant,
+                color = if (message.isFailed || message.isUndelivered) colors.error else colors.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             )
         }
@@ -565,12 +612,49 @@ private fun SheetAction(icon: Painter, label: String, color: Color = MaterialThe
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditDialog(message: Message, onDismiss: () -> Unit, onSave: (String, Long) -> Unit) {
+    MessageDialog(
+        title = "Edit message",
+        note = "Changes the copy on this phone only. The other person's copy stays the same.",
+        initialBody = message.body,
+        initialDate = message.date,
+        chooseSide = false,
+        onDismiss = onDismiss,
+        onSave = { body, date, _ -> onSave(body, date) },
+    )
+}
+
+/** Writes a message into the conversation by hand, for example to put back one that was deleted. */
+@Composable
+private fun AddMessageDialog(onDismiss: () -> Unit, onSave: (body: String, date: Long, incoming: Boolean) -> Unit) {
+    MessageDialog(
+        title = "Add message",
+        note = "Adds a message to this conversation on this phone only. Nothing is sent, and it is marked as added.",
+        initialBody = "",
+        initialDate = remember { System.currentTimeMillis() },
+        chooseSide = true,
+        onDismiss = onDismiss,
+        onSave = onSave,
+    )
+}
+
+/** Text, date and time of one message; with [chooseSide], also whether it was received or sent. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MessageDialog(
+    title: String,
+    note: String,
+    initialBody: String,
+    initialDate: Long,
+    chooseSide: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (body: String, date: Long, incoming: Boolean) -> Unit,
+) {
     val context = LocalContext.current
-    var text by rememberSaveable(message.id) { mutableStateOf(message.body) }
-    var date by rememberSaveable(message.id) { mutableStateOf(message.date) }
+    var text by rememberSaveable { mutableStateOf(initialBody) }
+    var date by rememberSaveable { mutableStateOf(initialDate) }
+    var incoming by rememberSaveable { mutableStateOf(true) }
     var pickingDate by remember { mutableStateOf(false) }
     var pickingTime by remember { mutableStateOf(false) }
     fun withDate(change: Calendar.() -> Unit) {
@@ -578,9 +662,24 @@ private fun EditDialog(message: Message, onDismiss: () -> Unit, onSave: (String,
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit message") },
+        title = { Text(title) },
         text = {
             Column {
+                if (chooseSide) {
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = incoming,
+                            onClick = { incoming = true },
+                            shape = SegmentedButtonDefaults.itemShape(0, 2),
+                        ) { Text("Received") }
+                        SegmentedButton(
+                            selected = !incoming,
+                            onClick = { incoming = false },
+                            shape = SegmentedButtonDefaults.itemShape(1, 2),
+                        ) { Text("Sent") }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
@@ -602,17 +701,13 @@ private fun EditDialog(message: Message, onDismiss: () -> Unit, onSave: (String,
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "Changes the copy on this phone only. The other person's copy stays the same.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(text, date) },
-                enabled = text.isNotBlank() && (text != message.body || date != message.date),
+                onClick = { onSave(text, date, incoming) },
+                enabled = text.isNotBlank() && (text != initialBody || date != initialDate),
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },

@@ -79,6 +79,10 @@
         <receiver
             android:name=".sms.SmsStatusReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".sms.SmsDeliveryReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

@@ -60,6 +60,7 @@ class SmsRepository(context: Context) {
     /** Newest first. */
     fun messages(threadId: Long): List<Message> {
         val originals = edits.originals(dateOf = { id -> dateOfRow(id) })
+        val added = edits.added()
         val result = ArrayList<Message>()
         val projection = arrayOf(
             Telephony.Sms._ID,
@@ -68,6 +69,7 @@ class SmsRepository(context: Context) {
             Telephony.Sms.DATE,
             Telephony.Sms.TYPE,
             Telephony.Sms.SUBSCRIPTION_ID,
+            Telephony.Sms.STATUS,
         )
         resolver.query(
             Telephony.Sms.CONTENT_URI,
@@ -87,6 +89,8 @@ class SmsRepository(context: Context) {
                     type = c.getInt(4),
                     subId = if (c.isNull(5)) -1 else c.getInt(5),
                     original = originals[id],
+                    added = id in added,
+                    status = if (c.isNull(6)) Telephony.Sms.STATUS_NONE else c.getInt(6),
                 )
             }
         }
@@ -160,9 +164,63 @@ class SmsRepository(context: Context) {
         replaceBody(message, original.body, original.date, record = null)
     }
 
-    fun delete(messageId: Long) {
-        resolver.delete(messageUri(messageId), null, null)
-        edits.remove(messageId)
+    /** A deleted message, kept in memory so the deletion can be undone. */
+    class Deleted(val values: ContentValues, val original: EditStore.Original?, val added: Boolean)
+
+    /** Returns what is needed to put the message back, or null if it was already gone. */
+    fun delete(message: Message): Deleted? {
+        val values = readRow(message.id)
+        resolver.delete(messageUri(message.id), null, null)
+        edits.remove(message.id)
+        val added = edits.unmarkAdded(message.id)
+        return values?.let { Deleted(it, message.original, added) }
+    }
+
+    /** Puts a deleted message back as a new row, with its edit history and marks. */
+    fun undelete(deleted: Deleted) {
+        val newId = resolver.insert(Telephony.Sms.CONTENT_URI, deleted.values)?.let { ContentUris.parseId(it) } ?: return
+        deleted.original?.let { edits.record(newId, it) }
+        if (deleted.added) edits.markAdded(newId)
+    }
+
+    /**
+     * Writes a message into a conversation on this device only: nothing is sent or received.
+     * For putting back a message that was deleted. The row is marked so the UI can say it was added by hand.
+     */
+    fun addMessage(threadId: Long, address: String, body: String, date: Long, incoming: Boolean, subId: Int) {
+        val values = ContentValues().apply {
+            put(Telephony.Sms.THREAD_ID, threadId)
+            put(Telephony.Sms.ADDRESS, address)
+            put(Telephony.Sms.BODY, body)
+            put(Telephony.Sms.DATE, date)
+            put(Telephony.Sms.DATE_SENT, date)
+            put(Telephony.Sms.READ, 1)
+            put(Telephony.Sms.SEEN, 1)
+            put(Telephony.Sms.TYPE, if (incoming) Telephony.Sms.MESSAGE_TYPE_INBOX else Telephony.Sms.MESSAGE_TYPE_SENT)
+            if (subId >= 0) put(Telephony.Sms.SUBSCRIPTION_ID, subId)
+        }
+        val newId = resolver.insert(Telephony.Sms.CONTENT_URI, values)?.let { ContentUris.parseId(it) } ?: return
+        if (newId > 0) edits.markAdded(newId)
+    }
+
+    /** Every column needed to write the same message back as a new row, or null if the row is gone. */
+    private fun readRow(messageId: Long): ContentValues? {
+        val columns = arrayOf(
+            Telephony.Sms.THREAD_ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE,
+            Telephony.Sms.DATE_SENT, Telephony.Sms.READ, Telephony.Sms.SEEN, Telephony.Sms.TYPE,
+            Telephony.Sms.STATUS, Telephony.Sms.SUBSCRIPTION_ID, Telephony.Sms.SERVICE_CENTER,
+            Telephony.Sms.PROTOCOL, Telephony.Sms.LOCKED,
+        )
+        return resolver.query(messageUri(messageId), columns, null, null, null)?.use { c ->
+            if (!c.moveToFirst()) return@use null
+            ContentValues().apply {
+                for ((i, name) in columns.withIndex()) {
+                    if (c.isNull(i)) continue
+                    if (c.getType(i) == android.database.Cursor.FIELD_TYPE_INTEGER) put(name, c.getLong(i))
+                    else put(name, c.getString(i))
+                }
+            }
+        }
     }
 
     fun markRead(threadId: Long) {
@@ -202,23 +260,7 @@ class SmsRepository(context: Context) {
      * Returns false if anything failed (the old row is left intact then).
      */
     private fun replaceBody(message: Message, body: String, date: Long, record: EditStore.Original?): Boolean = synchronized(replaceLock) {
-        val columns = arrayOf(
-            Telephony.Sms.THREAD_ID, Telephony.Sms.ADDRESS, Telephony.Sms.DATE, Telephony.Sms.DATE_SENT,
-            Telephony.Sms.READ, Telephony.Sms.SEEN, Telephony.Sms.TYPE, Telephony.Sms.STATUS,
-            Telephony.Sms.SUBSCRIPTION_ID, Telephony.Sms.SERVICE_CENTER, Telephony.Sms.PROTOCOL,
-            Telephony.Sms.LOCKED,
-        )
-        val values = ContentValues()
-        val found = resolver.query(messageUri(message.id), columns, null, null, null)?.use { c ->
-            if (!c.moveToFirst()) return@use false
-            for ((i, name) in columns.withIndex()) {
-                if (c.isNull(i)) continue
-                if (c.getType(i) == android.database.Cursor.FIELD_TYPE_INTEGER) values.put(name, c.getLong(i))
-                else values.put(name, c.getString(i))
-            }
-            true
-        } ?: false
-        if (!found) return@synchronized false
+        val values = readRow(message.id) ?: return@synchronized false
         values.put(Telephony.Sms.BODY, body)
         values.put(Telephony.Sms.DATE, date)
         val pending = EditStore.Pending(
@@ -258,6 +300,9 @@ class SmsRepository(context: Context) {
 
     private fun finishReplace(p: EditStore.Pending, newId: Long) {
         edits.remove(p.oldId)
+        if (edits.unmarkAdded(p.oldId)) edits.markAdded(newId)
+        // A delivery report still on its way is addressed to the old row.
+        edits.recordMove(p.oldId, newId)
         p.record?.let { edits.record(newId, it) }
         edits.endPending(p.oldId)
     }
