@@ -9,7 +9,7 @@
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?logo=android&logoColor=white)](#requirements)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![Version](https://img.shields.io/badge/version-0.2.0-4F46E5)](#roadmap)
+[![Version](https://img.shields.io/badge/version-0.2.1-4F46E5)](#roadmap)
 [![License](https://img.shields.io/badge/license-source--available-7C3AED)](LICENSE)
 
 [Features](#features) · [How edits work](#how-edits-work) · [App lock](#app-lock) · [Settings](#settings) · [Getting started](#getting-started) · [Roadmap](#roadmap) · [License](#license)
@@ -20,7 +20,7 @@
 
 Textwright is a native Android messaging app built with Kotlin and Jetpack Compose. It starts from one idea: the messages stored on *your* phone should be yours to edit. Today it is a working SMS client that can change the text and timestamp of stored messages, restore the originals, and keep itself behind a pattern or fingerprint lock. The goal is a complete, modern default messaging app.
 
-> **Status:** early development (`v0.2.0`). Usable and tested on a small number of devices, but expect rough edges and breaking changes. See the [roadmap](#roadmap).
+> **Status:** early development (`v0.2.1`). Usable and tested on a small number of devices, but expect rough edges and breaking changes. See the [roadmap](#roadmap).
 
 <p align="center">
   <img src="docs/screenshots-messaging.png" alt="Conversation list, a conversation with an edited message, and the edit dialog" width="900">
@@ -123,6 +123,12 @@ cd Textwright
 ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+### Install a release
+
+Signed APKs are attached to each [GitHub release](https://github.com/zamansheikh/Textwright/releases). Download the APK on an Android 8.0+ phone and open it.
+
+To sign your own release build, create a `keystore.properties` file in the repo root with `storeFile`, `storePassword`, `keyAlias` and `keyPassword`, then run `./gradlew assembleRelease`. The file is ignored by git.
 
 ### First run
 1. Open Textwright and tap **Set as default** (grant the permissions it asks for).
