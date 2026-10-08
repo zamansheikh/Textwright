@@ -9,6 +9,8 @@ data class Conversation(
     val snippet: String,
     val date: Long,
     val unread: Int,
+    /** True when the latest message was sent from this phone. */
+    val outgoing: Boolean,
 ) {
     val title: String get() = name ?: address.ifBlank { "Unknown" }
 }

@@ -21,10 +21,9 @@ class EditStore private constructor(context: Context) :
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createPending(db)
-        if (oldVersion < 3) {
-            db.execSQL("ALTER TABLE edits ADD COLUMN original_date INTEGER")
-            db.execSQL("ALTER TABLE pending ADD COLUMN record_date INTEGER")
-        }
+        if (oldVersion < 3) db.execSQL("ALTER TABLE edits ADD COLUMN original_date INTEGER")
+        // Only a v2 database has a pending table without record_date; createPending above already includes it.
+        if (oldVersion == 2) db.execSQL("ALTER TABLE pending ADD COLUMN record_date INTEGER")
     }
 
     private fun createPending(db: SQLiteDatabase) {

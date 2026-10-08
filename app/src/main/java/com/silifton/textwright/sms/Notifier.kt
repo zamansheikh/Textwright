@@ -9,6 +9,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.silifton.textwright.MainActivity
 import com.silifton.textwright.R
+import com.silifton.textwright.data.AppSettings
 import com.silifton.textwright.data.SmsRepository
 
 object Notifier {
@@ -38,11 +39,12 @@ object Notifier {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
+        val text = if (AppSettings.notificationPreview(context)) body else "New message"
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(SmsRepository(context).contactName(address) ?: address)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)

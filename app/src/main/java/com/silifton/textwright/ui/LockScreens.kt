@@ -2,7 +2,6 @@ package com.silifton.textwright.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
@@ -15,14 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -59,12 +55,14 @@ fun LockScreen(authenticate: Authenticate) {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Textwright", style = MaterialTheme.typography.headlineMedium)
+            AppIcon(72.dp)
+            Spacer(Modifier.height(16.dp))
+            Text("Textwright is locked", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
             VerifyPattern("Draw your pattern to unlock", onVerified = AppLock::unlock)
             if (remember { AppLock.biometricEnabled(context) }) {
-                Spacer(Modifier.height(8.dp))
-                TextButton(onClick = { authenticate("Unlock Textwright", AppLock::unlock) }) { Text("Use fingerprint") }
+                Spacer(Modifier.height(16.dp))
+                OutlinedButton(onClick = { authenticate("Unlock Textwright", AppLock::unlock) }) { Text("Use fingerprint") }
             }
         }
     }
@@ -111,41 +109,31 @@ fun LockSettingsScreen(vm: MainViewModel, authenticate: Authenticate) {
                         Button(onClick = { mismatch = false; step = LockStep.Draw }) { Text("Set a pattern") }
                     }
                 } else {
-                    ListItem(
-                        headlineContent = { Text("Unlock with fingerprint") },
-                        supportingContent = {
-                            Text(
-                                if (canUseBiometric) "The pattern still works as a fallback"
-                                else "Add a fingerprint in the phone's settings first"
-                            )
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = fingerprint,
-                                enabled = canUseBiometric,
-                                onCheckedChange = { on ->
-                                    if (on) {
-                                        authenticate("Confirm your fingerprint") {
-                                            AppLock.setBiometricEnabled(context, true)
-                                            fingerprint = true
-                                        }
-                                    } else {
-                                        AppLock.setBiometricEnabled(context, false)
-                                        fingerprint = false
-                                    }
-                                },
-                            )
-                        },
-                    )
-                    HorizontalDivider()
-                    ListItem(
-                        headlineContent = { Text("Change pattern") },
-                        modifier = Modifier.clickable { step = LockStep.Verify(remove = false) },
-                    )
-                    ListItem(
-                        headlineContent = { Text("Turn off app lock") },
-                        modifier = Modifier.clickable { step = LockStep.Verify(remove = true) },
-                    )
+                    SectionHeader("Unlock")
+                    SwitchRow(
+                        "Unlock with fingerprint",
+                        if (canUseBiometric) "The pattern still works as a fallback"
+                        else "Add a fingerprint in the phone's settings first",
+                        checked = fingerprint,
+                        enabled = canUseBiometric,
+                    ) { on ->
+                        if (on) {
+                            authenticate("Confirm your fingerprint") {
+                                AppLock.setBiometricEnabled(context, true)
+                                fingerprint = true
+                            }
+                        } else {
+                            AppLock.setBiometricEnabled(context, false)
+                            fingerprint = false
+                        }
+                    }
+                    SectionHeader("Pattern")
+                    SettingRow("Change pattern", "Draw the current pattern, then a new one", onClick = {
+                        step = LockStep.Verify(remove = false)
+                    })
+                    SettingRow("Turn off app lock", "Textwright will open without asking", onClick = {
+                        step = LockStep.Verify(remove = true)
+                    })
                 }
             }
             return@Scaffold

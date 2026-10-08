@@ -45,6 +45,7 @@ class SmsRepository(context: Context) {
                         snippet = c.getString(2).orEmpty(),
                         date = c.getLong(3),
                         unread = if (unread) 1 else 0,
+                        outgoing = c.getInt(5) != Telephony.Sms.MESSAGE_TYPE_INBOX,
                     )
                 } else if (unread) {
                     byThread[threadId] = existing.copy(unread = existing.unread + 1)

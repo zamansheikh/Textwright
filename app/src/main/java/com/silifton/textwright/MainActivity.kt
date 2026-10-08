@@ -7,17 +7,20 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Telephony
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import com.silifton.textwright.data.AppSettings
 import com.silifton.textwright.security.AppLock
 import com.silifton.textwright.ui.MainViewModel
 import com.silifton.textwright.ui.TextwrightRoot
@@ -39,8 +42,13 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         AppLock.onLaunch(this)
+        AppSettings.load(this)
         if (savedInstanceState == null) handleIntent(intent)
         setContent {
+            val secure = AppSettings.blockScreenshots
+            LaunchedEffect(secure) {
+                window.setFlags(if (secure) WindowManager.LayoutParams.FLAG_SECURE else 0, WindowManager.LayoutParams.FLAG_SECURE)
+            }
             TextwrightRoot(
                 vm = vm,
                 isDefault = isDefault,

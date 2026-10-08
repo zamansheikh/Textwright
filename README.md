@@ -9,10 +9,10 @@
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?logo=android&logoColor=white)](#requirements)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![Version](https://img.shields.io/badge/version-0.1.0-4F46E5)](#roadmap)
+[![Version](https://img.shields.io/badge/version-0.2.0-4F46E5)](#roadmap)
 [![License](https://img.shields.io/badge/license-source--available-7C3AED)](LICENSE)
 
-[Features](#features) · [How edits work](#how-edits-work) · [App lock](#app-lock) · [Getting started](#getting-started) · [Roadmap](#roadmap) · [License](#license)
+[Features](#features) · [How edits work](#how-edits-work) · [App lock](#app-lock) · [Settings](#settings) · [Getting started](#getting-started) · [Roadmap](#roadmap) · [License](#license)
 
 </div>
 
@@ -20,7 +20,7 @@
 
 Textwright is a native Android messaging app built with Kotlin and Jetpack Compose. It starts from one idea: the messages stored on *your* phone should be yours to edit. Today it is a working SMS client that can change the text and timestamp of stored messages, restore the originals, and keep itself behind a pattern or fingerprint lock. The goal is a complete, modern default messaging app.
 
-> **Status:** early development (`v0.1.0`). Usable and tested on a small number of devices, but expect rough edges and breaking changes. See the [roadmap](#roadmap).
+> **Status:** early development (`v0.2.0`). Usable and tested on a small number of devices, but expect rough edges and breaking changes. See the [roadmap](#roadmap).
 
 ## Features
 
@@ -32,6 +32,9 @@ Textwright is a native Android messaging app built with Kotlin and Jetpack Compo
 - **Syncs with other messaging apps**: edits are written so that Google Messages shows them when it becomes the default app again (see [How edits work](#how-edits-work)).
 - **Crash-safe edits**: an edit interrupted by a crash or app kill is finished or cleaned up on the next launch.
 - **App lock**: require a pattern, or your fingerprint, every time the app is opened (see [App lock](#app-lock)).
+- **Settings**: light, dark or system theme, wallpaper colours, notification privacy, screenshot blocking (see [Settings](#settings)).
+- **Search**: filter conversations by name, number or latest message.
+- **Conversation view**: grouped message bubbles, day separators, contact avatars, unread counts, and a call shortcut.
 - **Send and receive SMS**: conversation list, threads, new message, reply.
 - **Dual-SIM support**: pick the SIM to send from; replies default to the SIM the conversation last used.
 - **Contact names**: conversations show contact names when the contacts permission is granted.
@@ -41,7 +44,7 @@ Textwright is a native Android messaging app built with Kotlin and Jetpack Compo
 ### Not yet supported
 - MMS (receiving is stubbed; sending and viewing are not implemented)
 - RCS, group messaging, attachments
-- Search, backup and restore, archived and blocked conversations
+- Search inside message history, backup and restore, archived and blocked conversations
 - Tablets and foldables (layout not tuned)
 
 ## How edits work
@@ -57,7 +60,7 @@ Verified with Google Messages on a physical Pixel 6 and on an emulator. **Samsun
 
 ## App lock
 
-Textwright can ask for a pattern each time it is opened. Tap the lock icon on the conversation list to set it up.
+Textwright can ask for a pattern each time it is opened. Set it up in *Settings → App lock*.
 
 - **Pattern:** join at least four dots on a 3×3 grid. Only a salted, stretched hash of the pattern is stored (PBKDF2-HMAC-SHA256), never the pattern itself.
 - **Fingerprint:** once a pattern is set, you can turn on fingerprint unlock. It uses the fingerprints already enrolled in Android, and the pattern stays available as a fallback.
@@ -68,8 +71,24 @@ Textwright can ask for a pattern each time it is opened. Tap the lock icon on th
 What the lock does not do:
 
 - **It does not encrypt your messages.** They stay in the system SMS store, where the default SMS app and anything with SMS permission can read them. The lock stops someone holding your unlocked phone from opening Textwright.
-- **It does not hide notifications.** Incoming messages still show their text in the notification.
+- **It does not hide notifications by itself.** Turn off *Settings → Show message text* to keep message text out of notifications.
+- **It does not hide the app in the recent apps screen by itself.** Turn on *Settings → Block screenshots* for that.
 - **There is no pattern recovery.** If you forget the pattern, the only way back in is to clear the app's data, which also deletes the saved originals of edited messages.
+
+## Settings
+
+Open settings with the gear icon on the conversation list.
+
+| Section | Setting | What it does |
+|---|---|---|
+| Appearance | Theme | System default, light or dark |
+| Appearance | Wallpaper colours | Use Android 12+ dynamic colours instead of the Textwright palette |
+| Notifications | Show message text | Off shows only "New message" in notifications |
+| Notifications | Sound, vibration and more | Opens the system notification settings for the app |
+| Privacy and security | App lock | Pattern and fingerprint lock (see [App lock](#app-lock)) |
+| Privacy and security | Block screenshots | Blocks screenshots and hides the app in the recent apps screen |
+| Messaging | Default SMS app | Opens the system default apps screen |
+| About | About Textwright | Version, how edits work, source and license links |
 
 ## Responsible use
 
@@ -100,7 +119,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 1. Open Textwright and tap **Set as default** (grant the permissions it asks for).
 2. Open a conversation, long-press a message, and choose **Edit**.
 3. Change the text, the date or the time, then **Save**.
-4. Optional: tap the lock icon on the conversation list to set a pattern and turn on fingerprint unlock.
+4. Optional: open *Settings → App lock* to set a pattern and turn on fingerprint unlock.
 5. To use another messaging app again, make it the default in *Settings → Apps → Default apps → SMS app*.
 
 > **Back up first.** Editing replaces messages in your system SMS store. Try it on a test conversation before relying on it, and keep a backup of messages you care about.
@@ -128,11 +147,12 @@ app/src/main/java/com/silifton/textwright/
 ├── data/
 │   ├── SmsRepository.kt     reads and writes the system SMS store, row replacement and crash recovery
 │   ├── EditStore.kt         private SQLite store: originals and the in-flight edit journal
+│   ├── AppSettings.kt       user preferences (theme, notification privacy, screenshot blocking)
 │   └── Models.kt            Conversation, Message, Sim
 ├── security/
 │   └── AppLock.kt           app lock state, pattern hash, attempt lockout
 ├── sms/                     receivers, sender, SIM helpers, notifications
-└── ui/                      Compose screens, lock screens, view model, theme
+└── ui/                      Compose screens (messages, settings, about, lock), view model, theme
 ```
 
 - **UI:** Jetpack Compose, Material 3.
@@ -147,10 +167,9 @@ The aim is a full-featured default messaging app. Rough order of priority:
 - [ ] Samsung Messages and other apps: test and handle their re-sync behaviour
 - [ ] MMS and attachments
 - [ ] Unit and instrumented tests, CI
-- [ ] Search
+- [ ] Search inside message history
 - [ ] Backup and restore, including Textwright's saved originals
 - [ ] Archive, mute, block and spam handling
-- [ ] App lock: hide notification content while locked, optional screenshot blocking
 - [ ] Group messaging
 - [ ] Scheduled sending
 - [ ] RCS
@@ -175,6 +194,13 @@ Particularly useful right now: testing edits against **Samsung Messages and othe
 Textwright is **source-available, not open source**. You can read the code, build it for your own personal use, and contribute to this repository. You may **not** copy or reuse the code in your own project, redistribute it, or publish your own builds. Contributions are licensed to the project owner as described in the license.
 
 See [LICENSE](LICENSE) for the full terms. For any use it doesn't allow, contact the owner.
+
+## Author
+
+Developed by **Zaman Sheikh** at Silifton.
+
+- GitHub: [github.com/zamansheikh](https://github.com/zamansheikh)
+- Facebook: [facebook.com/zamansheikh.404](https://www.facebook.com/zamansheikh.404)
 
 ## Acknowledgements
 

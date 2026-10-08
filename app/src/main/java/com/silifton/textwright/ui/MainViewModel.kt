@@ -5,6 +5,7 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.Telephony
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.silifton.textwright.data.Conversation
@@ -23,7 +24,9 @@ sealed interface Screen {
     data object List : Screen
     data class Thread(val threadId: Long, val address: String) : Screen
     data class Compose(val address: String = "", val body: String = "") : Screen
+    data object Settings : Screen
     data object LockSettings : Screen
+    data object About : Screen
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -77,7 +80,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 _conversations.value = repo.conversations()
                 (_screen.value as? Screen.Thread)?.let { _messages.value = repo.messages(it.threadId) }
-            }
+            }.onFailure { Log.w("Textwright", "Could not load messages", it) }
         }
     }
 
@@ -101,8 +104,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _screen.value = Screen.Compose(address, body)
     }
 
-    fun openLockSettings() {
-        _screen.value = Screen.LockSettings
+    fun open(screen: Screen) {
+        _screen.value = screen
     }
 
     fun selectSim(subId: Int) {
@@ -110,7 +113,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun back() {
-        _screen.value = Screen.List
+        _screen.value = when (_screen.value) {
+            Screen.LockSettings, Screen.About -> Screen.Settings
+            else -> Screen.List
+        }
     }
 
     fun titleFor(address: String): String = repo.contactName(address) ?: address
