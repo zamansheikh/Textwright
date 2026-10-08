@@ -23,6 +23,7 @@ sealed interface Screen {
     data object List : Screen
     data class Thread(val threadId: Long, val address: String) : Screen
     data class Compose(val address: String = "", val body: String = "") : Screen
+    data object LockSettings : Screen
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -98,6 +99,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun openCompose(address: String = "", body: String = "") {
         _sendSubId.value = Sims.choose(_sims.value)
         _screen.value = Screen.Compose(address, body)
+    }
+
+    fun openLockSettings() {
+        _screen.value = Screen.LockSettings
     }
 
     fun selectSim(subId: Int) {

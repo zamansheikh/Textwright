@@ -50,4 +50,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
+    // Fragment is pinned because biometric alone brings in a version that breaks the Activity Result API.
+    implementation("androidx.fragment:fragment:1.8.9")
+    implementation("androidx.biometric:biometric:1.1.0")
 }

@@ -38,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -74,10 +75,15 @@ import androidx.compose.ui.unit.dp
 import com.silifton.textwright.data.Conversation
 import com.silifton.textwright.data.Message
 import com.silifton.textwright.data.Sim
+import com.silifton.textwright.security.AppLock
 
 @Composable
-fun TextwrightRoot(vm: MainViewModel, isDefault: Boolean, onRequestDefault: () -> Unit) {
+fun TextwrightRoot(vm: MainViewModel, isDefault: Boolean, onRequestDefault: () -> Unit, authenticate: Authenticate) {
     TextwrightTheme {
+        if (AppLock.locked) {
+            LockScreen(authenticate)
+            return@TextwrightTheme
+        }
         if (!isDefault) {
             SetupScreen(onRequestDefault)
             return@TextwrightTheme
@@ -88,6 +94,7 @@ fun TextwrightRoot(vm: MainViewModel, isDefault: Boolean, onRequestDefault: () -
             Screen.List -> ConversationListScreen(vm)
             is Screen.Thread -> ThreadScreen(vm, current)
             is Screen.Compose -> ComposeScreen(vm, current)
+            Screen.LockSettings -> LockSettingsScreen(vm, authenticate)
         }
     }
 }
@@ -119,7 +126,16 @@ private fun SetupScreen(onRequestDefault: () -> Unit) {
 private fun ConversationListScreen(vm: MainViewModel) {
     val conversations by vm.conversations.collectAsState()
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Textwright") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Textwright") },
+                actions = {
+                    IconButton(onClick = vm::openLockSettings) {
+                        Icon(Icons.Filled.Lock, contentDescription = "App lock")
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = { vm.openCompose() }) {
                 Icon(Icons.Filled.Add, contentDescription = "New message")
@@ -475,7 +491,7 @@ private fun SimPicker(sims: List<Sim>, selectedSubId: Int, onSelect: (Int) -> Un
 }
 
 @Composable
-private fun BackButton(onClick: () -> Unit) {
+internal fun BackButton(onClick: () -> Unit) {
     IconButton(onClick = onClick) {
         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
     }

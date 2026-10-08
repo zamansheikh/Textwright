@@ -1,12 +1,40 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M38,34h32a6,6 0,0 1,6 6v20a6,6 0,0 1,-6 6h-18l-10,9v-9h-4a6,6 0,0 1,-6 -6v-20a6,6 0,0 1,6 -6z" />
+        android:pathData="M39,31 h30 a9,9 0 0 1 9,9 v17 a9,9 0 0 1 -9,9 h-16.5 l-10.5,9.5 v-9.5 h-3 a9,9 0 0 1 -9,-9 v-17 a9,9 0 0 1 9,-9 z" />
     <path
-        android:fillColor="#3949AB"
-        android:pathData="M41,44h26v3h-26zM41,52h18v3h-18z" />
+        android:fillColor="#A5B4FC"
+        android:pathData="M40.80,41.20 h17.40 a1.80,1.80 0 0 1 0,3.60 h-17.40 a1.80,1.80 0 0 1 0,-3.60 z M40.80,49.20 h10.40 a1.80,1.80 0 0 1 0,3.60 h-10.40 a1.80,1.80 0 0 1 0,-3.60 z" />
+    <path android:pathData="M56.84,49.03 L72.75,33.12 A3.6,3.6 0 0 1 77.84,33.12 L81.38,36.66 A3.6,3.6 0 0 1 81.38,41.75 L65.47,57.66 L53.01,61.49 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="18"
+                android:startY="18"
+                android:endX="90"
+                android:endY="90"
+                android:startColor="#4F46E5"
+                android:endColor="#7C3AED" />
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M70.00,38.14 L76.36,44.50 L64.34,56.53 L57.97,50.16 Z" />
+    <path
+        android:fillColor="#FDE9B8"
+        android:pathData="M57.97,50.16 L64.34,56.53 L55.50,59.00 Z" />
+    <path
+        android:fillColor="#312E81"
+        android:pathData="M56.49,55.46 L59.04,58.01 L55.50,59.00 Z" />
+    <path
+        android:fillColor="#E0E7FF"
+        android:pathData="M71.76,36.37 L78.13,42.74 L76.36,44.50 L70.00,38.14 Z" />
+    <path
+        android:fillColor="#FB7185"
+        android:pathData="M71.76,36.37 L73.88,34.25 A2,2 0 0 1 76.71,34.25 L80.25,37.79 A2,2 0 0 1 80.25,40.62 L78.13,42.74 Z" />
 </vector>
