@@ -445,7 +445,8 @@ private fun TimeHeader(millis: Long) {
 
 /**
  * [joinsOlder] and [joinsNewer] say whether the bubble above or below belongs to the same run from the same
- * side; joined bubbles square off the corners between them. Tapping a bubble shows its own time.
+ * side; joined bubbles square off the corners between them. Tapping a bubble shows its time and whether it
+ * was edited.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -500,11 +501,11 @@ private fun MessageBubble(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             )
         }
-        // Anything unusual about a message is always shown; the time only on request.
+        // Sending problems are always shown; the time and the edited marker only when the bubble is tapped.
         val details = buildList {
             if (expanded) add(DateUtils.formatDateTime(context, message.date, DateUtils.FORMAT_SHOW_TIME))
             if (sim != null && (expanded || isLatest)) add(sim.name)
-            if (message.isEdited) add("Edited")
+            if (message.isEdited && expanded) add("Edited")
             if (message.isSending) add("Sending…")
             if (message.isFailed) add("Not sent")
         }

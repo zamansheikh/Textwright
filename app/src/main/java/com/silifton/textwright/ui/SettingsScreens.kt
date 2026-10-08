@@ -174,7 +174,7 @@ fun AboutScreen(vm: MainViewModel) {
             InfoCard(
                 "Responsible use",
                 "Textwright is not a tool for fabricating evidence or misleading anyone about what was said. " +
-                    "It can't change who sent a message or create received messages, and it marks every edit.",
+                    "It can't change who sent a message or create received messages, and tapping an edited message shows it was edited.",
             )
             InfoCard(
                 "Your data",

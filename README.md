@@ -35,7 +35,7 @@ Textwright is a native Android messaging app built with Kotlin and Jetpack Compo
 - **Edit message text**: change what a stored message says.
 - **Edit message date and time**: change the timestamp a message shows.
 - **Restore original**: undo any edit and bring back the original text *and* date. Textwright keeps the first original, however many times you edit.
-- **Edited marker**: edited messages are labelled, so you always know what you changed.
+- **Edited marker**: tap a message to see whether it was edited, along with its time.
 - **Syncs with other messaging apps**: edits are written so that Google Messages shows them when it becomes the default app again (see [How edits work](#how-edits-work)).
 - **Crash-safe edits**: an edit interrupted by a crash or app kill is finished or cleaned up on the next launch.
 - **App lock**: require a pattern, or your fingerprint, every time the app is opened (see [App lock](#app-lock)).
@@ -101,7 +101,7 @@ Open settings with the gear icon on the conversation list.
 
 ## Responsible use
 
-Textwright edits the copy of your messages on your own device. It is not a tool for fabricating evidence, impersonating others, or misleading anyone about what was said. It deliberately does **not** let you edit the sender of a message or create fake received messages. Edited messages carry a visible marker in Textwright. Please use it lawfully.
+Textwright edits the copy of your messages on your own device. It is not a tool for fabricating evidence, impersonating others, or misleading anyone about what was said. It deliberately does **not** let you edit the sender of a message or create fake received messages. Tapping an edited message in Textwright shows an "Edited" marker. Please use it lawfully.
 
 ## Requirements
 
