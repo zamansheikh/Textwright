@@ -1,11 +1,13 @@
 package com.silifton.textwright.data
 
 import android.Manifest
+import android.app.role.RoleManager
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.ContactsContract
 import android.provider.Telephony
 import java.util.concurrent.ConcurrentHashMap
@@ -19,6 +21,7 @@ class SmsRepository(context: Context) {
     private val names = ConcurrentHashMap<String, String>()
 
     fun conversations(): List<Conversation> {
+        recoverPending()
         val byThread = LinkedHashMap<Long, Conversation>()
         val projection = arrayOf(
             Telephony.Sms.THREAD_ID,
@@ -96,14 +99,12 @@ class SmsRepository(context: Context) {
             restore(message)
             return
         }
-        val newId = replaceBody(message, newBody) ?: return
-        edits.remove(message.id)
-        edits.record(newId, message.originalBody ?: message.body)
+        replaceBody(message, newBody, record = message.originalBody ?: message.body)
     }
 
     fun restore(message: Message) {
         val original = message.originalBody ?: return
-        if (replaceBody(message, original) != null) edits.remove(message.id)
+        replaceBody(message, original, record = null)
     }
 
     fun delete(messageId: Long) {
@@ -143,9 +144,11 @@ class SmsRepository(context: Context) {
     /**
      * Other messaging apps keep their own copy and ignore in-place body changes, so the
      * edit is written as a fresh row (same metadata, new body) and the old row is removed.
-     * Returns the new row id, or null if anything failed (the old row is left intact then).
+     * [record] is the original text to remember for the new row, or null to clear the edit marker.
+     * The step is journaled in [EditStore] so [recoverPending] can finish it after a crash.
+     * Returns false if anything failed (the old row is left intact then).
      */
-    private fun replaceBody(message: Message, body: String): Long? {
+    private fun replaceBody(message: Message, body: String, record: String?): Boolean = synchronized(replaceLock) {
         val columns = arrayOf(
             Telephony.Sms.THREAD_ID, Telephony.Sms.ADDRESS, Telephony.Sms.DATE, Telephony.Sms.DATE_SENT,
             Telephony.Sms.READ, Telephony.Sms.SEEN, Telephony.Sms.TYPE, Telephony.Sms.STATUS,
@@ -162,18 +165,71 @@ class SmsRepository(context: Context) {
             }
             true
         } ?: false
-        if (!found) return null
+        if (!found) return@synchronized false
         values.put(Telephony.Sms.BODY, body)
-        val newUri = resolver.insert(Telephony.Sms.CONTENT_URI, values) ?: return null
-        val newId = ContentUris.parseId(newUri)
-        if (newId <= 0) return null
+        val pending = EditStore.Pending(
+            message.id,
+            values.getAsLong(Telephony.Sms.THREAD_ID),
+            values.getAsLong(Telephony.Sms.DATE),
+            body,
+            record,
+        )
+        edits.beginPending(pending)
+        val newUri = resolver.insert(Telephony.Sms.CONTENT_URI, values)
+        val newId = newUri?.let { ContentUris.parseId(it) } ?: 0L
+        if (newUri == null || newId <= 0) {
+            edits.endPending(message.id)
+            return@synchronized false
+        }
         if (resolver.delete(messageUri(message.id), null, null) <= 0) {
             resolver.delete(newUri, null, null)
-            return null
+            edits.endPending(message.id)
+            return@synchronized false
         }
-        return newId
+        finishReplace(pending, newId)
+        true
+    }
+
+    private fun isDefaultSmsApp(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            context.getSystemService(RoleManager::class.java).isRoleHeld(RoleManager.ROLE_SMS)
+        } else {
+            Telephony.Sms.getDefaultSmsPackage(context) == context.packageName
+        }
+
+    private fun finishReplace(p: EditStore.Pending, newId: Long) {
+        edits.remove(p.oldId)
+        p.record?.let { edits.record(newId, it) }
+        edits.endPending(p.oldId)
+    }
+
+    /** Completes or cancels replacements that were interrupted by a crash or kill. */
+    fun recoverPending() = synchronized(replaceLock) {
+        if (!isDefaultSmsApp()) return@synchronized
+        for (p in edits.pending()) {
+            runCatching {
+                var newId = 0L
+                resolver.query(
+                    Telephony.Sms.CONTENT_URI,
+                    arrayOf(Telephony.Sms._ID),
+                    "${Telephony.Sms.THREAD_ID} = ? AND ${Telephony.Sms.DATE} = ? AND ${Telephony.Sms.BODY} = ? AND ${Telephony.Sms._ID} != ?",
+                    arrayOf(p.threadId.toString(), p.date.toString(), p.newBody, p.oldId.toString()),
+                    null,
+                )?.use { c -> if (c.moveToFirst()) newId = c.getLong(0) }
+                if (newId > 0) {
+                    resolver.delete(messageUri(p.oldId), null, null)
+                    finishReplace(p, newId)
+                } else {
+                    edits.endPending(p.oldId)
+                }
+            }
+        }
     }
 
     private fun messageUri(messageId: Long): Uri =
         ContentUris.withAppendedId(Telephony.Sms.CONTENT_URI, messageId)
+
+    private companion object {
+        val replaceLock = Any()
+    }
 }
