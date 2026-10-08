@@ -85,10 +85,11 @@ fun SettingsScreen(vm: MainViewModel) {
             SectionHeader("Privacy and security")
             SettingRow(
                 "App lock",
-                if (AppLock.hasPattern(context)) {
-                    if (AppLock.biometricEnabled(context)) "On · pattern and fingerprint" else "On · pattern"
-                } else {
-                    "Off"
+                when {
+                    AppLock.hasPattern(context) && AppLock.biometricEnabled(context) -> "On · fingerprint or pattern"
+                    AppLock.hasPattern(context) -> "On · pattern"
+                    AppLock.biometricEnabled(context) -> "On · fingerprint"
+                    else -> "Off"
                 },
                 onClick = { vm.open(Screen.LockSettings) },
             )

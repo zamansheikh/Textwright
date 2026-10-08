@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,10 +45,20 @@ import kotlinx.coroutines.withContext
 /** Shows the system fingerprint prompt with the given title and calls back on success. */
 typealias Authenticate = (title: String, onSuccess: () -> Unit) -> Unit
 
-/** Covers the whole app while it is locked. */
+/**
+ * Covers the whole app while it is locked. Shows one way in at a time: the fingerprint when it is turned on,
+ * and the pattern pad only when there is no fingerprint or the user asks for the pattern.
+ */
 @Composable
 fun LockScreen(authenticate: Authenticate) {
     val context = LocalContext.current
+    val hasPattern = remember { AppLock.hasPattern(context) }
+    val fingerprint = remember { AppLock.biometricEnabled(context) }
+    val showPattern = hasPattern && (!fingerprint || AppLock.patternRequested)
+    fun askFingerprint() {
+        AppLock.patternRequested = false
+        authenticate("Unlock Textwright", AppLock::unlock)
+    }
     Surface(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().padding(32.dp),
@@ -59,10 +69,19 @@ fun LockScreen(authenticate: Authenticate) {
             Spacer(Modifier.height(16.dp))
             Text("Textwright is locked", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
-            VerifyPattern("Draw your pattern to unlock", onVerified = AppLock::unlock)
-            if (remember { AppLock.biometricEnabled(context) }) {
-                Spacer(Modifier.height(16.dp))
-                OutlinedButton(onClick = { authenticate("Unlock Textwright", AppLock::unlock) }) { Text("Use fingerprint") }
+            if (showPattern) {
+                VerifyPattern("Draw your pattern to unlock", onVerified = AppLock::unlock)
+                if (fingerprint) {
+                    Spacer(Modifier.height(16.dp))
+                    TextButton(onClick = ::askFingerprint) { Text("Use fingerprint") }
+                }
+            } else {
+                PatternPrompt("Use your fingerprint to unlock", error = false)
+                Button(onClick = ::askFingerprint, modifier = Modifier.height(52.dp)) { Text("Unlock with fingerprint") }
+                if (hasPattern) {
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { AppLock.patternRequested = true }) { Text("Use pattern") }
+                }
             }
         }
     }
@@ -91,50 +110,59 @@ fun LockSettingsScreen(vm: MainViewModel, authenticate: Authenticate) {
         val current = step
         if (current == null) {
             Column(Modifier.fillMaxSize().padding(padding)) {
-                if (!hasPattern) {
-                    Column(Modifier.padding(24.dp)) {
-                        Text(
-                            "Ask for a pattern every time Textwright is opened. " +
-                                "Once a pattern is set you can also unlock with your fingerprint.",
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "A forgotten pattern can't be recovered. The only way back in is to clear the app's " +
-                                "data, which also loses the saved originals of edited messages.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(24.dp))
-                        Button(onClick = { mismatch = false; step = LockStep.Draw }) { Text("Set a pattern") }
-                    }
-                } else {
-                    SectionHeader("Unlock")
-                    SwitchRow(
-                        "Unlock with fingerprint",
-                        if (canUseBiometric) "The pattern still works as a fallback"
-                        else "Add a fingerprint in the phone's settings first",
-                        checked = fingerprint,
-                        enabled = canUseBiometric,
-                    ) { on ->
-                        if (on) {
-                            authenticate("Confirm your fingerprint") {
-                                AppLock.setBiometricEnabled(context, true)
-                                fingerprint = true
-                            }
-                        } else {
-                            AppLock.setBiometricEnabled(context, false)
-                            fingerprint = false
+                Text(
+                    "Ask for your fingerprint, a pattern, or either one every time Textwright is opened.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp),
+                )
+                SectionHeader("Fingerprint")
+                SwitchRow(
+                    "Unlock with fingerprint",
+                    when {
+                        !canUseBiometric -> "Add a fingerprint in the phone's settings first"
+                        hasPattern -> "The pattern still works as a fallback"
+                        else -> "The phone's screen lock works as a fallback"
+                    },
+                    checked = fingerprint,
+                    enabled = canUseBiometric,
+                ) { on ->
+                    if (on) {
+                        authenticate("Confirm your fingerprint") {
+                            AppLock.setBiometricEnabled(context, true)
+                            fingerprint = true
                         }
+                    } else {
+                        AppLock.setBiometricEnabled(context, false)
+                        fingerprint = false
                     }
-                    SectionHeader("Pattern")
+                }
+                SectionHeader("Pattern")
+                if (!hasPattern) {
+                    SettingRow("Set a pattern", "Join at least ${AppLock.MIN_DOTS} dots on a grid", onClick = {
+                        mismatch = false
+                        step = LockStep.Draw
+                    })
+                } else {
                     SettingRow("Change pattern", "Draw the current pattern, then a new one", onClick = {
                         step = LockStep.Verify(remove = false)
                     })
-                    SettingRow("Turn off app lock", "Textwright will open without asking", onClick = {
+                    SettingRow("Remove pattern", "Draw the current pattern to remove it", onClick = {
                         step = LockStep.Verify(remove = true)
                     })
                 }
+                Text(
+                    when {
+                        hasPattern -> "App lock is on. A forgotten pattern can't be recovered: without a working " +
+                            "fingerprint, the only way back in is to clear the app's data, which also loses the " +
+                            "saved originals of edited messages."
+                        fingerprint -> "App lock is on. If the fingerprint isn't recognised, the phone's screen lock " +
+                            "opens Textwright instead."
+                        else -> "App lock is off. Turn on fingerprint, set a pattern, or both."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(24.dp),
+                )
             }
             return@Scaffold
         }
@@ -146,9 +174,8 @@ fun LockSettingsScreen(vm: MainViewModel, authenticate: Authenticate) {
             when (current) {
                 is LockStep.Verify -> VerifyPattern("Draw your current pattern") {
                     if (current.remove) {
-                        AppLock.clear(context)
+                        AppLock.removePattern(context)
                         hasPattern = false
-                        fingerprint = false
                         step = null
                     } else {
                         mismatch = false

@@ -13,7 +13,7 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
 /**
- * Optional lock in front of the app: a pattern, with fingerprint as a shortcut for it.
+ * Optional lock in front of the app: a fingerprint, a pattern, or both (either one then unlocks).
  * Only a salted hash of the pattern is stored. This keeps someone holding the unlocked phone out of the app;
  * it does not encrypt messages, which stay in the system SMS store.
  */
@@ -36,24 +36,31 @@ object AppLock {
     /** True once the fingerprint prompt has been offered for the current lock, so it is not shown twice. */
     var prompted = false
 
+    /** Set when the user asks for the pattern pad although fingerprint unlock is on. */
+    var patternRequested by mutableStateOf(false)
+
     private var launched = false
 
     /** Locks on the first activity start of the process; later starts (rotation) keep the current state. */
     fun onLaunch(context: Context) {
         if (launched) return
         launched = true
-        locked = hasPattern(context)
+        locked = enabled(context)
     }
 
     fun lock(context: Context) {
-        if (!hasPattern(context)) return
+        if (!enabled(context)) return
         locked = true
         prompted = false
+        patternRequested = false
     }
 
     fun unlock() {
         locked = false
     }
+
+    /** The lock is on when there is at least one way to unlock: a usable fingerprint or a pattern. */
+    fun enabled(context: Context): Boolean = hasPattern(context) || biometricEnabled(context)
 
     fun hasPattern(context: Context): Boolean = prefs(context).contains(KEY_HASH)
 
@@ -67,10 +74,9 @@ object AppLock {
             .apply()
     }
 
-    /** Turns the lock off and forgets the pattern and the fingerprint setting. */
-    fun clear(context: Context) {
-        prefs(context).edit().clear().apply()
-        locked = false
+    /** Forgets the pattern. The lock stays on if fingerprint unlock is on. */
+    fun removePattern(context: Context) {
+        prefs(context).edit().remove(KEY_SALT).remove(KEY_HASH).remove(KEY_FAILS).remove(KEY_RETRY_AT).apply()
     }
 
     /** Slow on purpose (key stretching): call off the main thread. Wrong attempts count towards a lockout. */
@@ -95,6 +101,7 @@ object AppLock {
     /** Wall-clock time before which pattern attempts are refused, or 0. */
     fun retryAt(context: Context): Long = prefs(context).getLong(KEY_RETRY_AT, 0)
 
+    /** False again if every fingerprint is later removed from the phone, so that cannot lock the user out. */
     fun biometricEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_BIOMETRIC, false) && canUseBiometric(context)
 

@@ -82,12 +82,22 @@ class MainActivity : FragmentActivity() {
     private fun authenticate(title: String, onSuccess: () -> Unit) {
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = onSuccess()
+
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                // The prompt's own button is "Use pattern" while locked with a pattern set.
+                if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON && AppLock.locked) AppLock.patternRequested = true
+            }
         }
-        val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(title)
-            .setNegativeButtonText("Cancel")
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
-            .build()
+        val builder = BiometricPrompt.PromptInfo.Builder().setTitle(title)
+        val info = when {
+            // Unlocking with no pattern to fall back on: let the phone's own PIN or pattern stand in.
+            AppLock.locked && !AppLock.hasPattern(this) -> builder.setAllowedAuthenticators(
+                BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+            else -> builder
+                .setNegativeButtonText(if (AppLock.locked) "Use pattern" else "Cancel")
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
+        }.build()
         BiometricPrompt(this, ContextCompat.getMainExecutor(this), callback).authenticate(info)
     }
 

@@ -22,6 +22,13 @@ Textwright is a native Android messaging app built with Kotlin and Jetpack Compo
 
 > **Status:** early development (`v0.2.0`). Usable and tested on a small number of devices, but expect rough edges and breaking changes. See the [roadmap](#roadmap).
 
+<p align="center">
+  <img src="docs/screenshots-messaging.png" alt="Conversation list, a conversation with an edited message, and the edit dialog" width="900">
+</p>
+<p align="center">
+  <img src="docs/screenshots-features.png" alt="Search with highlighted matches, the settings screen, and the pattern lock" width="900">
+</p>
+
 ## Features
 
 ### Available now
@@ -60,20 +67,22 @@ Verified with Google Messages on a physical Pixel 6 and on an emulator. **Samsun
 
 ## App lock
 
-Textwright can ask for a pattern each time it is opened. Set it up in *Settings → App lock*.
+Textwright can ask for your fingerprint, a pattern, or either one each time it is opened. Set it up in *Settings → App lock*.
 
+- **Fingerprint:** uses the fingerprints already enrolled in Android. It can be the only lock, with no pattern; the phone's own screen lock (PIN, pattern or password) then works as the fallback.
 - **Pattern:** join at least four dots on a 3×3 grid. Only a salted, stretched hash of the pattern is stored (PBKDF2-HMAC-SHA256), never the pattern itself.
-- **Fingerprint:** once a pattern is set, you can turn on fingerprint unlock. It uses the fingerprints already enrolled in Android, and the pattern stays available as a fallback.
+- **Both:** either one unlocks. The lock screen asks for the fingerprint and shows the pattern pad only if you choose *Use pattern*.
 - **When it locks:** on every cold start, and whenever you leave the app. Rotating the screen does not lock it.
 - **Wrong attempts:** five wrong patterns in a row force a 30-second wait.
-- **Changing or turning off** the lock requires the current pattern.
+- **Changing or removing the pattern** requires the current pattern.
 
 What the lock does not do:
 
 - **It does not encrypt your messages.** They stay in the system SMS store, where the default SMS app and anything with SMS permission can read them. The lock stops someone holding your unlocked phone from opening Textwright.
 - **It does not hide notifications by itself.** Turn off *Settings → Show message text* to keep message text out of notifications.
 - **It does not hide the app in the recent apps screen by itself.** Turn on *Settings → Block screenshots* for that.
-- **There is no pattern recovery.** If you forget the pattern, the only way back in is to clear the app's data, which also deletes the saved originals of edited messages.
+- **There is no pattern recovery.** If you forget the pattern and have no working fingerprint, the only way back in is to clear the app's data, which also deletes the saved originals of edited messages.
+- **Removing every fingerprint from the phone turns a fingerprint-only lock off**, so that it cannot lock you out.
 
 ## Settings
 
@@ -119,7 +128,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 1. Open Textwright and tap **Set as default** (grant the permissions it asks for).
 2. Open a conversation, long-press a message, and choose **Edit**.
 3. Change the text, the date or the time, then **Save**.
-4. Optional: open *Settings → App lock* to set a pattern and turn on fingerprint unlock.
+4. Optional: open *Settings → App lock* to turn on fingerprint unlock, set a pattern, or both.
 5. To use another messaging app again, make it the default in *Settings → Apps → Default apps → SMS app*.
 
 > **Back up first.** Editing replaces messages in your system SMS store. Try it on a test conversation before relying on it, and keep a backup of messages you care about.
